@@ -48,3 +48,5 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
+
+.pnpm-store
