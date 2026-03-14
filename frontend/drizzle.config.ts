@@ -1,7 +1,11 @@
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { config } from "dotenv";
 import { defineConfig } from "drizzle-kit";
 
-config({ path: ".env", override: true });
+const configDir = path.dirname(fileURLToPath(import.meta.url));
+
+config({ path: path.join(configDir, ".env"), override: true });
 
 if (!process.env.DATABASE_URL) {
   throw new Error("DATABASE_URL is not set");
@@ -9,7 +13,8 @@ if (!process.env.DATABASE_URL) {
 
 export default defineConfig({
   dialect: "postgresql",
-  schema: "./schema.ts",
+  schema: "./drizzle/schema.ts",
+  out: "./drizzle",
   dbCredentials: {
     url: process.env.DATABASE_URL,
   },
