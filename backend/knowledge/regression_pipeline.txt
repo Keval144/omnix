@@ -1,0 +1,21 @@
+Regression predicts continuous numerical outputs.
+
+Pipeline:
+
+1 Data cleaning
+2 Feature scaling
+3 Train test split
+4 Model training
+
+Models:
+
+Linear Regression
+Ridge Regression
+Lasso Regression
+Random Forest Regressor
+
+Metrics:
+
+MSE
+RMSE
+R2 Score

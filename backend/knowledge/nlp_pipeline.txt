@@ -1,0 +1,19 @@
+NLP datasets contain text.
+
+Pipeline:
+
+Text cleaning
+Tokenization
+Stopword removal
+Vectorization
+
+Models:
+
+TF-IDF + Logistic Regression
+RNN
+Transformer
+
+Metrics:
+
+Accuracy
+F1 Score
