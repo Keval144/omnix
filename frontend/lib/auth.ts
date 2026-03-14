@@ -1,7 +1,8 @@
-import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { betterAuth } from "better-auth";
-import { db } from "@/lib/db";
+import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { authPlugins } from "@/lib/auth/plugins";
+import { db } from "@/lib/db";
+import * as schema from "@/schema";
 
 export const createAuth = () => {
   const googleClientId = process.env.GOOGLE_CLIENT_ID;
@@ -12,6 +13,7 @@ export const createAuth = () => {
   return betterAuth({
     database: drizzleAdapter(db, {
       provider: "pg",
+      schema,
     }),
     emailAndPassword: {
       enabled: true,
