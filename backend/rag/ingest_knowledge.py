@@ -1,5 +1,5 @@
 import os
-from vector_store import add_document
+from rag.vector_store import add_document
 
 KNOWLEDGE_DIR = "knowledge"
 

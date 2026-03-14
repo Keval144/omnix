@@ -7,10 +7,10 @@ def retrieve_ml_context(dataset_info):
     domain = dataset_info.get("domain", "tabular")
 
     query = f"""
-machine learning pipeline for {problem} dataset
-domain {domain}
-data preprocessing model training evaluation
-"""
+                machine learning pipeline for {problem} dataset
+                domain {domain}
+                data preprocessing model training evaluation
+            """
 
     docs = search_documents(query)
 
