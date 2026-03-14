@@ -1,17 +1,26 @@
+from pathlib import Path
+
 import pandas as pd
 
 
-def analyze_dataset_file(path):
+class DatasetAnalyzer:
+    @staticmethod
+    def analyze(path: str) -> dict:
+        suffix = Path(path).suffix.lower()
+        if suffix == ".csv":
+            dataframe = pd.read_csv(path)
+        else:
+            dataframe = pd.read_excel(path)
 
-    df = pd.read_csv(path)
+        return {
+            "rows": int(dataframe.shape[0]),
+            "columns": int(dataframe.shape[1]),
+            "column_names": list(dataframe.columns),
+            "column_types": dataframe.dtypes.astype(str).to_dict(),
+            "missing_values": dataframe.isnull().sum().to_dict(),
+            "sample_rows": dataframe.head(15).to_dict(orient="records"),
+        }
 
-    summary = {
-        "rows": int(df.shape[0]),
-        "columns": int(df.shape[1]),
-        "column_names": list(df.columns),
-        "column_types": df.dtypes.astype(str).to_dict(),
-        "missing_values": df.isnull().sum().to_dict(),
-        "sample_rows": df.head(5).to_dict()
-    }
 
-    return summary
+def analyze_dataset_file(path: str) -> dict:
+    return DatasetAnalyzer.analyze(path)
