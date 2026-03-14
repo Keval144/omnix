@@ -3,6 +3,7 @@ backend/venv
 
 # dependencies
 frontend/node_modules
+frontend/.next/*
 frontend/.pnp
 frontend/.pnp.*
 frontend/.yarn/*
@@ -51,3 +52,4 @@ __pycache__/
 
 .pnpm-store
 backend/.env
+
