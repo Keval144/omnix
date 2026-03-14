@@ -19,6 +19,7 @@ def build_dataset_directory(user_id: str, project_slug: str) -> str:
 
 
 def build_notebook_directory(user_id: str, project_slug: str) -> str:
+    return os.path.join(str(settings.storage_root), NOTEBOOKS_DIRNAME, project_slug)
     return os.path.join(str(settings.storage_root), NOTEBOOKS_DIRNAME, user_id, project_slug)
 
 
@@ -42,4 +43,23 @@ def write_text_file(destination_dir: str, filename: str, content: str) -> str:
 
 def build_public_storage_path(kind: str, user_id: str, project_slug: str, filename: str) -> str:
     prefix = settings.data_storage_url_prefix.rstrip("/")
+    if kind == NOTEBOOKS_DIRNAME:
+        return f"{prefix}/{kind}/{project_slug}/{filename}" if prefix else f"/{kind}/{project_slug}/{filename}"
     return f"{prefix}/{kind}/{user_id}/{project_slug}/{filename}" if prefix else f"/{kind}/{user_id}/{project_slug}/{filename}"
+
+
+def resolve_storage_path(path: str) -> str:
+    path_obj = Path(path)
+    if path_obj.is_absolute() and path_obj.exists():
+        return str(path_obj)
+
+    normalized = path.replace("\\", "/")
+    prefix = settings.data_storage_url_prefix.rstrip("/")
+    if prefix and normalized.startswith(prefix):
+        normalized = normalized[len(prefix):]
+
+    normalized = normalized.lstrip("/")
+    if normalized.startswith(f"{DATASETS_DIRNAME}/") or normalized.startswith(f"{NOTEBOOKS_DIRNAME}/"):
+        return str((settings.storage_root / normalized).resolve())
+
+    return str(path_obj)

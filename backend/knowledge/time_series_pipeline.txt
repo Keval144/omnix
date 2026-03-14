@@ -1,0 +1,20 @@
+Time series datasets contain time based ordering.
+
+Important steps:
+
+Sorting by date
+Handling missing timestamps
+Creating lag features
+Rolling statistics
+
+Models:
+
+ARIMA
+LSTM
+Prophet
+
+Evaluation:
+
+MAE
+RMSE
+MAPE
