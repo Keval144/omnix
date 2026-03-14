@@ -1,7 +1,21 @@
 fastapi
 uvicorn
+<<<<<<< Updated upstream
+=======
+sqlalchemy>=2.0
+asyncpg
+aiosqlite
+asyncpg
+psycopg[binary]
+alembic
+pydantic-settings
+>>>>>>> Stashed changes
 pandas
 scikit-learn
 papermill
 nbformat
+<<<<<<< Updated upstream
 python-multipart
+=======
+python-multipart
+>>>>>>> Stashed changes

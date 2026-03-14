@@ -1,0 +1,25 @@
+Classification problems predict categorical outputs.
+
+Pipeline:
+
+1 Data loading
+2 Missing value handling
+3 Encoding categorical features
+4 Feature scaling
+5 Train test split
+6 Model training
+
+Common models:
+
+Logistic Regression
+Random Forest
+XGBoost
+Neural Networks
+
+Evaluation metrics:
+
+Accuracy
+Precision
+Recall
+F1 Score
+Confusion Matrix
