@@ -3,6 +3,7 @@ backend/venv
 
 # dependencies
 frontend/node_modules
+frontend/.next/*
 frontend/.pnp
 frontend/.pnp.*
 frontend/.yarn/*
@@ -40,3 +41,15 @@ frontend/.vercel
 # typescript
 frontend/*.tsbuildinfo
 frontend/next-env.d.ts
+
+backend/__pycache__
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+*.pyo
+*.pyd
+
+.pnpm-store
+backend/.env
+
