@@ -1,42 +1,24 @@
-import os
 import json
+import os
 from pathlib import Path
 from uuid import UUID
 
 import nbformat
+from fastapi import HTTPException, status
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-import os
-from pathlib import Path
-from uuid import UUID
-
-NOTEBOOK_DIR = "storage/notebooks"
-
-os.makedirs(NOTEBOOK_DIR, exist_ok=True)
+from llm.iflow_client import IFlowClient
 from models.dataset import Dataset
 from models.notebook import Notebook
-from services.project_service import ProjectService
 from services.dataset_analyzer import analyze_dataset_file
+from services.project_service import ProjectService
 from services.rag_service import retrieve_ml_context
 from utils.storage import (
     build_notebook_directory,
     build_public_storage_path,
     resolve_storage_path,
 )
-from llm.iflow_client import IFlowClient
-
-
-def generate_notebook(dataset_path):
-
-    nb = nbformat.v4.new_notebook()
-import nbformat
-from fastapi import HTTPException, status
-from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from models.dataset import Dataset
-from models.notebook import Notebook
-from services.project_service import ProjectService
-from utils.storage import build_notebook_directory, build_public_storage_path
 
 
 class NotebookService:
@@ -50,51 +32,11 @@ class NotebookService:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
 
         latest_dataset = await self.session.scalar(
-            select(Dataset).where(Dataset.project_id == project.project_id).order_by(Dataset.uploaded_at.desc()).limit(1)
-        )
-        if not latest_dataset:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Upload a dataset before generating notebook")
-
-        next_version = (
-            await self.session.scalar(
-                select(func.coalesce(func.max(Notebook.version), 0)).where(Notebook.project_id == project.project_id)
-            )
-            or 0
-        ) + 1
-
-        notebook_dir = build_notebook_directory(user_id, project.project_slug)
-        os.makedirs(notebook_dir, exist_ok=True)
-        filename = f"notebook_v{next_version}.ipynb"
-        absolute_path = os.path.join(notebook_dir, filename)
-
-        notebook = self._build_notebook(latest_dataset.file_path)
-        with open(absolute_path, "w", encoding="utf-8") as file_obj:
-            nbformat.write(notebook, file_obj)
-
-        public_path = build_public_storage_path("notebooks", user_id, project.project_slug, filename)
-        notebook_record = Notebook(
-            project_id=project.project_id,
-            notebook_path=public_path,
-            version=next_version,
-            notebook_metadata={"source_dataset": latest_dataset.file_name},
-        )
-    async def generate_notebook(self, project_id: UUID, user_id: str) -> Notebook:
-
-        project = await self.project_service.get_project_for_user(project_id, user_id)
-
-        if not project:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Project not found",
-            )
-
-        latest_dataset = await self.session.scalar(
             select(Dataset)
             .where(Dataset.project_id == project.project_id)
             .order_by(Dataset.uploaded_at.desc())
             .limit(1)
         )
-
         if not latest_dataset:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -117,14 +59,10 @@ class NotebookService:
         absolute_path = os.path.join(notebook_dir, filename)
 
         notebook = self._build_notebook(latest_dataset.file_path)
-
         with open(absolute_path, "w", encoding="utf-8") as file_obj:
             nbformat.write(notebook, file_obj)
 
-        public_path = build_public_storage_path(
-            "notebooks", user_id, project.project_slug, filename
-        )
-
+        public_path = build_public_storage_path("notebooks", user_id, project.project_slug, filename)
         notebook_record = Notebook(
             project_id=project.project_id,
             notebook_path=public_path,
@@ -133,9 +71,7 @@ class NotebookService:
         )
 
         self.session.add(notebook_record)
-
         project.notebook_path = public_path
-
         await self.session.commit()
         await self.session.refresh(notebook_record)
 
@@ -143,17 +79,9 @@ class NotebookService:
 
     @staticmethod
     def _build_notebook(dataset_path: str):
-
-        """
-        Build notebook using:
-        Dataset Analyzer + RAG + LLM
-        """
-
         resolved_dataset_path = resolve_storage_path(dataset_path)
         dataset_info = analyze_dataset_file(resolved_dataset_path)
-
         rag_context = retrieve_ml_context(dataset_info)
-
         file_name = Path(resolved_dataset_path).name
 
         prompt = f"""
@@ -194,60 +122,32 @@ Rules:
             response = IFlowClient.generate(prompt)
             sections = json.loads(response)
         except (RuntimeError, json.JSONDecodeError):
-            sections = NotebookService._build_fallback_sections(
-                resolved_dataset_path,
-                dataset_info,
-            )
+            sections = NotebookService._build_fallback_sections(resolved_dataset_path, dataset_info)
 
         notebook = nbformat.v4.new_notebook()
-
-        cells = []
-
-        # Title
-        cells.append(
+        notebook["cells"] = [
             nbformat.v4.new_markdown_cell(
                 f"# Omnix AI Generated Notebook\n\nDataset: **{file_name}**"
-            )
-        )
-
-        # Imports
-        cells.append(nbformat.v4.new_markdown_cell("## Import Libraries"))
-        cells.append(nbformat.v4.new_code_cell(sections.get("imports", "")))
-
-        # Data Loading
-        cells.append(nbformat.v4.new_markdown_cell("## Load Dataset"))
-        cells.append(nbformat.v4.new_code_cell(sections.get("data_loading", "")))
-
-        # EDA
-        cells.append(nbformat.v4.new_markdown_cell("## Exploratory Data Analysis"))
-        cells.append(nbformat.v4.new_code_cell(sections.get("eda", "")))
-
-        # Preprocessing
-        cells.append(nbformat.v4.new_markdown_cell("## Data Preprocessing"))
-        cells.append(nbformat.v4.new_code_cell(sections.get("preprocessing", "")))
-
-        # Feature Engineering
-        cells.append(nbformat.v4.new_markdown_cell("## Feature Engineering"))
-        cells.append(nbformat.v4.new_code_cell(sections.get("feature_engineering", "")))
-
-        # Train Test Split
-        cells.append(nbformat.v4.new_markdown_cell("## Train Test Split"))
-        cells.append(nbformat.v4.new_code_cell(sections.get("train_test_split", "")))
-
-        # Model Training
-        cells.append(nbformat.v4.new_markdown_cell("## Model Training"))
-        cells.append(nbformat.v4.new_code_cell(sections.get("model_training", "")))
-
-        # Evaluation
-        cells.append(nbformat.v4.new_markdown_cell("## Model Evaluation"))
-        cells.append(nbformat.v4.new_code_cell(sections.get("evaluation", "")))
-
-        # Visualization
-        cells.append(nbformat.v4.new_markdown_cell("## Visualization"))
-        cells.append(nbformat.v4.new_code_cell(sections.get("visualization", "")))
-
-        notebook["cells"] = cells
-
+            ),
+            nbformat.v4.new_markdown_cell("## Import Libraries"),
+            nbformat.v4.new_code_cell(sections.get("imports", "")),
+            nbformat.v4.new_markdown_cell("## Load Dataset"),
+            nbformat.v4.new_code_cell(sections.get("data_loading", "")),
+            nbformat.v4.new_markdown_cell("## Exploratory Data Analysis"),
+            nbformat.v4.new_code_cell(sections.get("eda", "")),
+            nbformat.v4.new_markdown_cell("## Data Preprocessing"),
+            nbformat.v4.new_code_cell(sections.get("preprocessing", "")),
+            nbformat.v4.new_markdown_cell("## Feature Engineering"),
+            nbformat.v4.new_code_cell(sections.get("feature_engineering", "")),
+            nbformat.v4.new_markdown_cell("## Train Test Split"),
+            nbformat.v4.new_code_cell(sections.get("train_test_split", "")),
+            nbformat.v4.new_markdown_cell("## Model Training"),
+            nbformat.v4.new_code_cell(sections.get("model_training", "")),
+            nbformat.v4.new_markdown_cell("## Model Evaluation"),
+            nbformat.v4.new_code_cell(sections.get("evaluation", "")),
+            nbformat.v4.new_markdown_cell("## Visualization"),
+            nbformat.v4.new_code_cell(sections.get("visualization", "")),
+        ]
         return notebook
 
     @staticmethod
@@ -283,8 +183,8 @@ Rules:
             ),
             "data_loading": "\n".join(
                 [
-                    f'dataset_path = Path("{dataset_path}")',
-                    f'df = {reader}(dataset_path)',
+                    f'dataset_path = Path(r"{dataset_path}")',
+                    f"df = {reader}(dataset_path)",
                     "df.head()",
                 ]
             ),
@@ -363,47 +263,3 @@ Rules:
                 ]
             ),
         }
-
-
-async def generate_notebook(*args, **kwargs):
-    raise RuntimeError(
-        "Use NotebookService.generate_notebook with an async database session"
-    )
-
-        self.session.add(notebook_record)
-        project.notebook_path = public_path
-        await self.session.commit()
-        await self.session.refresh(notebook_record)
-        return notebook_record
-
-    @staticmethod
-    def _build_notebook(dataset_public_path: str):
-        notebook = nbformat.v4.new_notebook()
-        file_name = Path(dataset_public_path).name
-        notebook["cells"] = [
-            nbformat.v4.new_markdown_cell("# Auto Generated Machine Learning Notebook"),
-            nbformat.v4.new_markdown_cell("## Load Dataset"),
-            nbformat.v4.new_code_cell(
-                "import pandas as pd\n\n"
-                f"df = pd.read_csv('{file_name}')\n"
-                "df.head()"
-            ),
-            nbformat.v4.new_markdown_cell("## Train Baseline Model"),
-            nbformat.v4.new_code_cell(
-                "from sklearn.model_selection import train_test_split\n"
-                "from sklearn.ensemble import RandomForestClassifier\n\n"
-                "X = df.iloc[:, :-1]\n"
-                "y = df.iloc[:, -1]\n\n"
-                "X_train, X_test, y_train, y_test = train_test_split(\n"
-                "    X, y, test_size=0.2, random_state=42\n"
-                ")\n\n"
-                "model = RandomForestClassifier()\n"
-                "model.fit(X_train, y_train)\n"
-                "print('Model trained successfully')"
-            ),
-        ]
-        return notebook
-
-
-async def generate_notebook(*args, **kwargs):
-    raise RuntimeError("Use NotebookService.generate_notebook with an async database session")

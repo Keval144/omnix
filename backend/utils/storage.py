@@ -19,7 +19,6 @@ def build_dataset_directory(user_id: str, project_slug: str) -> str:
 
 
 def build_notebook_directory(user_id: str, project_slug: str) -> str:
-    return os.path.join(str(settings.storage_root), NOTEBOOKS_DIRNAME, project_slug)
     return os.path.join(str(settings.storage_root), NOTEBOOKS_DIRNAME, user_id, project_slug)
 
 
