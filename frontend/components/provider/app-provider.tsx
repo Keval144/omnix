@@ -14,18 +14,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       disableTransitionOnChange
     >
       <LenisProvider>{children}</LenisProvider>
-      <Toaster
-        position="top-right"
-        richColors
-        closeButton
-        toastOptions={{
-          style: {
-            background: "oklch(0.16 0.014 145)",
-            border: "1px solid oklch(0.28 0.04 149 / 0.6)",
-            color: "oklch(0.92 0.01 145)",
-          },
-        }}
-      />
     </ThemeProvider>
   );
 }
