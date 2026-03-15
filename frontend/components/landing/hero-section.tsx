@@ -1,6 +1,11 @@
 "use client";
 
 import { motion } from "framer-motion";
+import Link from "next/dist/client/link";
+import { Button } from "../shadcn-ui/button";
+
+
+
 
 export default function Hero() {
   return (
@@ -19,13 +24,11 @@ export default function Hero() {
 
         {/* CTA */}
         <div className="mt-8 flex justify-center gap-4">
-          <button className="rounded-lg bg-primary px-6 py-3 text-sm font-medium text-primary-foreground hover:opacity-90">
-            Get Started
-          </button>
+          <Button className="rounded-lg bg-primary px-6 py-3 text-sm font-medium text-primary-foreground hover:opacity-90">
+           <Link href="/signup">Get Started</Link>
+          </Button>
 
-          <button className="rounded-lg border px-6 py-3 text-sm font-medium hover:bg-muted">
-            View Demo
-          </button>
+         
         </div>
 
         {/* Secondary text */}

@@ -22,6 +22,7 @@ frontend/out/
 # production
 frontend/build
 
+
 # misc
 frontend/.DS_Store
 frontend/*.pem
@@ -56,3 +57,19 @@ backend/.env
 .env
 .env.*
 
+backend/__pycache__
+backend/db/__pycache__
+backend/services/__pycache__
+backend/utils/__pycache__
+backend/tests/__pycache__
+backend/llm/__pycache__
+backend/rag/__pycache__
+backend/routers/__pycache__
+backend/schemas/__pycache__
+backend/models/__pycache__
+
+
+backend/storage/datasets/*
+
+
+node_modules
