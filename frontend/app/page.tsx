@@ -1,18 +1,21 @@
-import { AnimatedLogo, Logo } from "@/components/common/logo";
-import { ThemeSwitch } from "@/components/common/theme-switch";
+import { StatsSection } from "@/components/common/AnimatedStats";
+import { Footer } from "@/components/common/footer";
+import { Header } from "@/components/common/header";
+import { CTASection } from "@/components/landing/cta";
+import { FeaturesSection } from "@/components/landing/features";
+import Hero from "@/components/landing/hero-section";
+import { FreePricing } from "@/components/landing/pricing";
 
 export default function Home() {
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-5xl flex-col px-6 py-10">
-      <header className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <AnimatedLogo size={52} />
-          <h1 className="text-xl font-semibold tracking-tight font-prompt">
-            Omnix
-          </h1>
-        </div>
-        <ThemeSwitch />
-      </header>
-    </main>
+    <>
+      <Header />
+      <Hero />
+      <StatsSection />
+      <FeaturesSection />
+      <FreePricing />
+      <CTASection />
+      <Footer />
+    </>
   );
 }

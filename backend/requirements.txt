@@ -21,3 +21,4 @@ nbformat
 python-multipart
 python-multipart
 cryptography
+kagglehub

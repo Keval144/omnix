@@ -1,7 +1,6 @@
 // app/theme-switch.tsx
 "use client";
 
-import { useCallback } from "react";
 import { Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/shadcn-ui/button";
@@ -26,16 +25,14 @@ export function ThemeSwitch({
 }: ThemeSwitchProps) {
   const { theme, setTheme } = useTheme();
 
-  const toggleTheme = useCallback(() => {
-    setTheme(theme === "light" ? "dark" : "light");
-  }, [theme, setTheme]);
-
   return (
     <Button
       variant={variant}
       size="icon"
       aria-label="Toggle theme"
-      onClick={toggleTheme}
+      onClick={() => {
+        setTheme(theme === "light" ? "dark" : "light");
+      }}
       className={cn("relative cursor-pointer rounded-full", className)}
     >
       <Sun
