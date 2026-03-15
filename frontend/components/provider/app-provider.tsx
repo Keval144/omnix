@@ -3,7 +3,6 @@
 import type * as React from "react";
 import { ThemeProvider } from "@/components/provider/theme-provider";
 import LenisProvider from "./lenis-provider";
-import { Toaster } from "@/components/shadcn-ui/sonner";
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   return (

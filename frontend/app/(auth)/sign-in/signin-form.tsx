@@ -32,6 +32,11 @@ export function SigninForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
+  const [errors, setErrors] = useState<{
+    email?: string;
+    password?: string;
+  }>({});
+
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -39,12 +44,17 @@ export function SigninForm() {
     const result = signInSchema.safeParse({ email, password });
 
     if (!result.success) {
-      toast.error("Invalid input", {
-        description: result.error.message,
+      const fieldErrors = result.error.flatten().fieldErrors;
+
+      setErrors({
+        email: fieldErrors.email?.[0],
+        password: fieldErrors.password?.[0],
       });
+
       return;
     }
 
+    setErrors({});
     setLoading(true);
 
     const toastId = toast.loading("Signing you in...");
@@ -73,11 +83,15 @@ export function SigninForm() {
   return (
     <Card className="w-full max-w-md backdrop-blur-xl py-2">
       <CardHeader className="text-center space-y-1">
-        <CardTitle className="flex items-center justify-center gap-2 text-3xl mb-2">
-          <Logo size={30} />
-          <span>Omnix</span>
+        <CardTitle className="text-3xl mb-2">
+          <Link href="/" className="flex items-center justify-center gap-2">
+            <Logo size={30} />
+            <span>Omnix</span>
+          </Link>
         </CardTitle>
+
         <CardTitle>Welcome Back</CardTitle>
+
         <CardDescription>
           Sign in to continue building with Omnix
         </CardDescription>
@@ -96,10 +110,17 @@ export function SigninForm() {
                 type="email"
                 placeholder="hello@omnix.ai"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  setErrors((prev) => ({ ...prev, email: undefined }));
+                }}
                 className="pl-9"
               />
             </div>
+
+            {errors.email && (
+              <p className="text-xs text-red-500">{errors.email}</p>
+            )}
           </div>
 
           {/* Password */}
@@ -113,7 +134,10 @@ export function SigninForm() {
                 type={showPassword ? "text" : "password"}
                 placeholder="••••••••"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  setErrors((prev) => ({ ...prev, password: undefined }));
+                }}
                 className="pl-9 pr-10"
               />
 
@@ -129,6 +153,10 @@ export function SigninForm() {
                 )}
               </button>
             </div>
+
+            {errors.password && (
+              <p className="text-xs text-red-500">{errors.password}</p>
+            )}
           </div>
 
           <Button
@@ -163,7 +191,7 @@ export function SigninForm() {
       </CardContent>
 
       <CardFooter className="justify-center text-sm">
-        Don’t have an account?{" "}
+        Don’t have an account?
         <Link
           href="/sign-up"
           className="ml-1 font-medium text-emerald-500 hover:underline"

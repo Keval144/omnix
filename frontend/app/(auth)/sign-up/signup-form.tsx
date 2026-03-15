@@ -32,12 +32,19 @@ import {
   Github,
   Chrome,
 } from "lucide-react";
+
 import { Logo } from "@/components/common/logo";
 
 export function SignupForm() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+
+  const [errors, setErrors] = useState<{
+    name?: string;
+    email?: string;
+    password?: string;
+  }>({});
 
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -48,12 +55,18 @@ export function SignupForm() {
     const result = signUpSchema.safeParse({ name, email, password });
 
     if (!result.success) {
-      toast.error("Invalid input", {
-        description: result.error.message,
+      const fieldErrors = result.error.flatten().fieldErrors;
+
+      setErrors({
+        name: fieldErrors.name?.[0],
+        email: fieldErrors.email?.[0],
+        password: fieldErrors.password?.[0],
       });
+
       return;
     }
 
+    setErrors({});
     setLoading(true);
 
     const toastId = toast.loading("Creating account...");
@@ -70,27 +83,28 @@ export function SignupForm() {
       toast.error("Sign up failed", {
         description: error.message,
       });
-
       setLoading(false);
       return;
     }
 
-    toast.success("Account created 🎉");
+    toast.success("Account created ");
 
     setName("");
     setEmail("");
     setPassword("");
-
     setLoading(false);
   };
 
   return (
     <Card className="w-full max-w-md backdrop-blur-xl px-3">
       <CardHeader className="text-center space-y-1">
-        <CardTitle className="flex items-center justify-center gap-2 text-3xl mb-2">
-          <Logo size={30} />
-          <span>Omnix</span>
+        <CardTitle className="text-3xl mb-2">
+          <Link href="/" className="flex items-center justify-center gap-2">
+            <Logo size={30} />
+            <span>Omnix</span>
+          </Link>
         </CardTitle>
+
         <CardTitle>Create your account</CardTitle>
         <CardDescription>Start building powerful AI workflows</CardDescription>
       </CardHeader>
@@ -107,10 +121,17 @@ export function SignupForm() {
               <Input
                 placeholder="John Doe"
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                onChange={(e) => {
+                  setName(e.target.value);
+                  setErrors((prev) => ({ ...prev, name: undefined }));
+                }}
                 className="pl-9"
               />
             </div>
+
+            {errors.name && (
+              <p className="text-xs text-red-500">{errors.name}</p>
+            )}
           </div>
 
           {/* Email */}
@@ -124,10 +145,17 @@ export function SignupForm() {
                 type="email"
                 placeholder="hello@omnix.ai"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  setErrors((prev) => ({ ...prev, email: undefined }));
+                }}
                 className="pl-9"
               />
             </div>
+
+            {errors.email && (
+              <p className="text-xs text-red-500">{errors.email}</p>
+            )}
           </div>
 
           {/* Password */}
@@ -141,7 +169,10 @@ export function SignupForm() {
                 type={showPassword ? "text" : "password"}
                 placeholder="••••••••"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  setErrors((prev) => ({ ...prev, password: undefined }));
+                }}
                 className="pl-9 pr-10"
               />
 
@@ -157,6 +188,10 @@ export function SignupForm() {
                 )}
               </button>
             </div>
+
+            {errors.password && (
+              <p className="text-xs text-red-500">{errors.password}</p>
+            )}
 
             <p className="text-xs text-muted-foreground">
               At least 8 characters
@@ -195,7 +230,7 @@ export function SignupForm() {
       </CardContent>
 
       <CardFooter className="justify-center text-sm">
-        Already have an account?{" "}
+        Already have an account?
         <Link
           href="/sign-in"
           className="ml-1 font-medium text-emerald-500 hover:underline"
