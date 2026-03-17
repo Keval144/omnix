@@ -65,3 +65,29 @@ export async function authenticatedJsonFetch<T>(
   const response = await authenticatedFetch(input, init);
   return response.json() as Promise<T>;
 }
+
+export type NotebookResponse = {
+  notebook_id: string;
+  project_id: string;
+  notebook_path: string;
+  version: number;
+  created_at: string;
+};
+
+export type Project = {
+  project_id: string;
+  project_slug: string;
+  dataset_path: string | null;
+  notebook_path: string | null;
+  metadata?: { name?: string; description?: string };
+  created_at: string;
+  updated_at: string;
+};
+
+export async function generateNotebook(projectId: string): Promise<NotebookResponse> {
+  const response = await authenticatedFetch("/notebook/generate", {
+    method: "POST",
+    body: JSON.stringify({ project_id: projectId }),
+  });
+  return response.json() as Promise<NotebookResponse>;
+}

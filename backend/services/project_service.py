@@ -36,3 +36,9 @@ class ProjectService:
             select(Project).where(Project.project_id == project_id, Project.user_id == user_id)
         )
         return result
+
+    async def get_projects(self, user_id: str) -> list[Project]:
+        result = await self.session.scalars(
+            select(Project).where(Project.user_id == user_id).order_by(Project.created_at.desc())
+        )
+        return list(result.all())

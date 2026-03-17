@@ -85,38 +85,38 @@ class NotebookService:
         file_name = Path(resolved_dataset_path).name
 
         prompt = f"""
-You are a senior machine learning engineer.
+                        You are a senior machine learning engineer.
 
-Generate a Kaggle-style machine learning notebook.
+                        Generate a Kaggle-style machine learning notebook.
 
-Machine Learning Knowledge:
-{rag_context}
+                        Machine Learning Knowledge:
+                        {rag_context}
 
-Dataset Information:
-{dataset_info}
+                        Dataset Information:
+                        {dataset_info}
 
-Dataset filename:
-{file_name}
+                        Dataset filename:
+                        {file_name}
 
-Return ONLY valid JSON with the following structure:
+                        Return ONLY valid JSON with the following structure:
 
-{{
-"imports": "",
-"data_loading": "",
-"eda": "",
-"preprocessing": "",
-"feature_engineering": "",
-"train_test_split": "",
-"model_training": "",
-"evaluation": "",
-"visualization": ""
-}}
+                        {{
+                        "imports": "",
+                        "data_loading": "",
+                        "eda": "",
+                        "preprocessing": "",
+                        "feature_engineering": "",
+                        "train_test_split": "",
+                        "model_training": "",
+                        "evaluation": "",
+                        "visualization": ""
+                        }}
 
-Rules:
-- Return JSON only
-- Do not include explanations
-- Only Python code inside the fields
-"""
+                        Rules:
+                        - Return JSON only
+                        - Do not include explanations
+                        - Only Python code inside the fields
+        """
 
         try:
             response = IFlowClient.generate(prompt)

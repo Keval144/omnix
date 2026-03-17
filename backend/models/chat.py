@@ -10,8 +10,8 @@ from db.base import Base
 
 
 class ChatRole(str, Enum):
-    USER = "user"
-    ASSISTANT = "assistant"
+    USER = "USER"
+    ASSISTANT = "ASSISTANT"
 
 
 class ChatSession(Base):

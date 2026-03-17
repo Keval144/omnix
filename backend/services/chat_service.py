@@ -1,3 +1,4 @@
+import logging
 from uuid import UUID
 
 from fastapi import HTTPException, status
@@ -5,9 +6,13 @@ from sqlalchemy import Select, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from constants import MAX_CHAT_PAGE_SIZE
+from llm.iflow_client import generate_async
 from models.chat import ChatMessage, ChatRole, ChatSession
+from models.dataset import Dataset
 from models.project import Project
 from services.project_service import ProjectService
+
+logger = logging.getLogger(__name__)
 
 
 class ChatService:
@@ -22,10 +27,14 @@ class ChatService:
 
         chat_session = await self._get_or_create_session(project.project_id, session_id)
         user_message = ChatMessage(session_id=chat_session.session_id, role=ChatRole.USER, content=content)
+        
+        dataset_context = await self._get_dataset_context(project.project_id)
+        response_content = await self._generate_response(content, dataset_context)
+        
         assistant_message = ChatMessage(
             session_id=chat_session.session_id,
             role=ChatRole.ASSISTANT,
-            content=self._build_stub_response(content),
+            content=response_content,
         )
         self.session.add_all([user_message, assistant_message])
         await self.session.commit()
@@ -33,6 +42,51 @@ class ChatService:
         await self.session.refresh(user_message)
         await self.session.refresh(assistant_message)
         return chat_session, user_message, assistant_message
+
+    async def _get_dataset_context(self, project_id: UUID) -> Dataset | None:
+        return await self.session.scalar(select(Dataset).where(Dataset.project_id == project_id))
+
+    async def _generate_response(self, prompt: str, dataset: Dataset | None) -> str:
+        try:
+            if dataset and dataset.summary:
+                context = self._build_context_from_dataset(dataset)
+                full_prompt = f"""You are a data analysis assistant. Use the following dataset information to answer user questions.
+
+Dataset Information:
+{context}
+
+User Question: {prompt}
+
+Provide a helpful, human-like response based on the dataset above."""
+            else:
+                full_prompt = f"""You are a helpful data analysis assistant. Answer the user's question in a conversational way.
+
+User Question: {prompt}"""
+
+            return await generate_async(full_prompt)
+        except Exception as e:
+            logger.error(f"Error generating response: {str(e)}", exc_info=True)
+            return f"I apologize, but I encountered an error while processing your request. Please try again."
+
+    def _build_context_from_dataset(self, dataset: Dataset) -> str:
+        summary = dataset.summary or {}
+        context_parts = [
+            f"File: {dataset.file_name}",
+            f"Type: {dataset.file_type}",
+            f"Rows: {summary.get('rows', 'N/A')}",
+            f"Columns: {', '.join(summary.get('column_names', []))}",
+        ]
+        
+        if sample := summary.get('sample_rows'):
+            context_parts.append(f"Sample Data: {str(sample[:3])}")
+        
+        if domain := summary.get('domain'):
+            context_parts.append(f"Domain: {domain}")
+        
+        if problem_type := summary.get('problem_type'):
+            context_parts.append(f"Problem Type: {problem_type}")
+        
+        return "\n".join(context_parts)
 
     async def get_messages(self, session_id: UUID, user_id: str, limit: int, cursor: UUID | None) -> tuple[list[ChatMessage], UUID | None, bool]:
         page_size = max(1, min(limit, MAX_CHAT_PAGE_SIZE))
@@ -68,7 +122,3 @@ class ChatService:
         self.session.add(session)
         await self.session.flush()
         return session
-
-    @staticmethod
-    def _build_stub_response(prompt: str) -> str:
-        return f"Dataset-aware assistant response placeholder for: {prompt}"

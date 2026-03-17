@@ -71,5 +71,6 @@ backend/models/__pycache__
 
 backend/storage/datasets/*
 
+backend/storage/notebooks/*
 
 node_modules

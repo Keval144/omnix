@@ -22,3 +22,4 @@ python-multipart
 python-multipart
 cryptography
 kagglehub
+httpx
