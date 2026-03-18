@@ -13,9 +13,11 @@ REPO_ROOT = BASE_DIR.parent
 load_dotenv(BASE_DIR / ".env")
 
 IFLOW_API_KEY = os.getenv("IFLOW_API_KEY")
-IFLOW_MODEL = os.getenv("IFLOW_MODEL", "glm-4-flash")
-
-IFLOW_API_URL = "https://api.iflow.cn/v1/chat/completions"
+IFLOW_MODEL = os.getenv("IFLOW_MODEL", "tstars2.0")
+IFLOW_API_URL = os.getenv(
+    "IFLOW_API_URL",
+    "https://apis.iflow.cn/v1/chat/completions",
+)
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(

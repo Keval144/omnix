@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from constants import DEFAULT_CHAT_PAGE_SIZE
 from db.session import get_db_session
 from schemas.chat_schema import ChatMessageCreate, ChatMessagePage, ChatMessageResponse
+from schemas.chat_schema import ChatSessionResponse
 from services.chat_service import ChatService
 from utils.auth import AuthenticatedUser, get_current_user
 
@@ -47,3 +48,13 @@ async def get_messages(
         next_cursor=next_cursor,
         has_more=has_more,
     )
+
+
+@router.get("/session/{session_id}", response_model=ChatSessionResponse)
+async def get_session(
+    session_id: UUID,
+    session: AsyncSession = Depends(get_db_session),
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> ChatSessionResponse:
+    chat_session = await ChatService(session).get_session(session_id, current_user.user_id)
+    return ChatSessionResponse.model_validate(chat_session)

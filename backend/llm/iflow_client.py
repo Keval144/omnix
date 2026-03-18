@@ -1,4 +1,5 @@
 import asyncio
+import os
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 
@@ -11,7 +12,12 @@ _executor = ThreadPoolExecutor(max_workers=4)
 class IFlowClient:
 
     @staticmethod
-    def generate(prompt: str) -> str:
+    def generate(prompt: str, system_prompt: str = "You are a helpful assistant.") -> str:
+        if not IFLOW_API_KEY:
+            raise RuntimeError("IFLOW_API_KEY is not configured")
+
+        use_env_proxy = os.getenv("IFLOW_USE_ENV_PROXY", "").lower() in {"1", "true", "yes"}
+
         headers = {
             "Authorization": f"Bearer {IFLOW_API_KEY}",
             "Content-Type": "application/json",
@@ -22,7 +28,7 @@ class IFlowClient:
             "messages": [
                 {
                     "role": "system",
-                    "content": "You are an expert machine learning engineer that generates Jupyter notebooks."
+                    "content": system_prompt
                 },
                 {
                     "role": "user",
@@ -32,7 +38,7 @@ class IFlowClient:
             "temperature": 0.0
         }
 
-        with httpx.Client(timeout=60.0) as client:
+        with httpx.Client(timeout=60.0, trust_env=use_env_proxy) as client:
             response = client.post(
                 IFLOW_API_URL,
                 headers=headers,
@@ -49,9 +55,17 @@ class IFlowClient:
                 f"LLM returned a non-JSON response with status {response.status_code}"
             ) from exc
 
-        return result["choices"][0]["message"]["content"]
+        if isinstance(result, dict) and "choices" not in result:
+            error_message = result.get("msg") or result.get("message") or response.text
+            raise RuntimeError(f"LLM provider error: {error_message}")
+
+        try:
+            message = result["choices"][0]["message"]
+            return message.get("content") or ""
+        except (KeyError, IndexError, TypeError) as exc:
+            raise RuntimeError("LLM response did not contain a valid message") from exc
 
 
-async def generate_async(prompt: str) -> str:
+async def generate_async(prompt: str, system_prompt: str = "You are a helpful assistant.") -> str:
     loop = asyncio.get_event_loop()
-    return await loop.run_in_executor(_executor, partial(IFlowClient.generate, prompt))
+    return await loop.run_in_executor(_executor, partial(IFlowClient.generate, prompt, system_prompt))

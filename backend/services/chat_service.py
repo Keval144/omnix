@@ -58,15 +58,20 @@ Dataset Information:
 User Question: {prompt}
 
 Provide a helpful, human-like response based on the dataset above."""
+                system_prompt = "You are a data analysis assistant. Use the provided dataset information to answer user questions helpfully."
             else:
                 full_prompt = f"""You are a helpful data analysis assistant. Answer the user's question in a conversational way.
 
 User Question: {prompt}"""
+                system_prompt = "You are a helpful data analysis assistant."
 
-            return await generate_async(full_prompt)
+            return await generate_async(full_prompt, system_prompt)
         except Exception as e:
             logger.error(f"Error generating response: {str(e)}", exc_info=True)
-            return f"I apologize, but I encountered an error while processing your request. Please try again."
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="LLM request failed. Check IFLOW_API_KEY, IFLOW_API_URL, and outbound network access.",
+            ) from e
 
     def _build_context_from_dataset(self, dataset: Dataset) -> str:
         summary = dataset.summary or {}
@@ -110,6 +115,16 @@ User Question: {prompt}"""
         items = rows[:page_size]
         next_cursor = items[-1].message_id if has_more and items else None
         return items, next_cursor, has_more
+
+    async def get_session(self, session_id: UUID, user_id: str) -> ChatSession:
+        session = await self.session.scalar(
+            select(ChatSession)
+            .join(ChatSession.project)
+            .where(ChatSession.session_id == session_id, Project.user_id == user_id)
+        )
+        if not session:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chat session not found")
+        return session
 
     async def _get_or_create_session(self, project_id: UUID, session_id: UUID | None) -> ChatSession:
         if session_id:
