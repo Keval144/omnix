@@ -1,0 +1,557 @@
+# Model Training
+
+## Overview
+
+Model training is the process of fitting a machine learning algorithm to data to learn patterns. This involves splitting data, using cross-validation, tuning hyperparameters, and building reproducible pipelines.
+
+## Train/Test Split
+
+### Basic Split
+
+```python
+from sklearn.model_selection import train_test_split
+
+# Split features and target
+X = df.drop('target', axis=1)
+y = df['target']
+
+# Basic split (80/20)
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, 
+    test_size=0.2, 
+    random_state=42
+)
+
+print(f"Training size: {len(X_train)}")
+print(f"Test size: {len(X_test)}")
+```
+
+### Stratified Split (for Classification)
+
+```python
+# Maintain class distribution
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y,
+    test_size=0.2,
+    random_state=42,
+    stratify=y  # Important for imbalanced classes
+)
+
+# Verify stratification
+print(f"Train class distribution:\n{y_train.value_counts(normalize=True)}")
+print(f"\nTest class distribution:\n{y_test.value_counts(normalize=True)}")
+```
+
+### Time-Based Split (for Time Series)
+
+```python
+# Use first 80% for training, last 20% for testing
+train_size = int(len(X) * 0.8)
+
+X_train = X.iloc[:train_size]
+X_test = X.iloc[train_size:]
+y_train = y.iloc[:train_size]
+y_test = y.iloc[train_size:]
+
+# Or use TimeSeriesSplit
+from sklearn.model_selection import TimeSeriesSplit
+
+tscv = TimeSeriesSplit(n_splits=5)
+for fold, (train_idx, test_idx) in enumerate(tscv.split(X)):
+    X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
+    y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
+    print(f"Fold {fold+1}: Train {len(train_idx)}, Test {len(test_idx)}")
+```
+
+### Group-Based Split (for Related Data)
+
+```python
+# Split by group (e.g., patient ID, company ID)
+X_train, X_test = train_test_split(
+    X,
+    test_size=0.2,
+    random_state=42,
+    groups=df['patient_id']  # Same patient stays in same split
+)
+```
+
+## Cross-Validation
+
+### K-Fold Cross-Validation
+
+```python
+from sklearn.model_selection import KFold, cross_val_score
+import numpy as np
+
+# 5-Fold CV
+kfold = KFold(n_splits=5, shuffle=True, random_state=42)
+
+model = RandomForestRegressor(n_estimators=100, random_state=42)
+
+# Evaluate with negative MSE (sklearn convention)
+scores = cross_val_score(
+    model, X, y,
+    cv=kfold,
+    scoring='neg_mean_squared_error'
+)
+
+rmse_scores = np.sqrt(-scores)
+print(f"CV RMSE: {rmse_scores.mean():.4f} (+/- {rmse_scores.std():.4f})")
+```
+
+### Repeated K-Fold
+
+```python
+from sklearn.model_selection import RepeatedKFold
+
+# 5-Fold CV repeated 3 times (15 total evaluations)
+rkfold = RepeatedKFold(n_splits=5, n_repeats=3, random_state=42)
+
+scores = cross_val_score(model, X, y, cv=rkfold, scoring='neg_mean_squared_error')
+print(f"CV RMSE: {np.sqrt(-scores).mean():.4f} (+/- {np.sqrt(-scores).std():.4f})")
+```
+
+### Stratified K-Fold (for Classification)
+
+```python
+from sklearn.model_selection import StratifiedKFold
+
+skfold = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+
+scores = cross_val_score(
+    XGBClassifier(n_estimators=100, random_state=42),
+    X, y,
+    cv=skfold,
+    scoring='accuracy'
+)
+
+print(f"CV Accuracy: {scores.mean():.4f} (+/- {scores.std():.4f})")
+```
+
+### Leave-One-Out Cross-Validation
+
+```python
+from sklearn.model_selection import LeaveOneOut
+
+# Use for very small datasets
+loocv = LeaveOneOut()
+
+scores = cross_val_score(model, X, y, cv=loocv, scoring='neg_mean_squared_error')
+print(f"LOOCV RMSE: {np.sqrt(-scores).mean():.4f}")
+```
+
+## Hyperparameter Tuning
+
+### GridSearchCV
+
+```python
+from sklearn.model_selection import GridSearchCV
+import numpy as np
+
+# Define parameter grid
+param_grid = {
+    'n_estimators': [50, 100, 200],
+    'max_depth': [5, 10, 15, None],
+    'min_samples_split': [2, 5, 10],
+    'min_samples_leaf': [1, 2, 4]
+}
+
+# Create model
+rf = RandomForestRegressor(random_state=42)
+
+# Grid search with cross-validation
+grid_search = GridSearchCV(
+    rf,
+    param_grid,
+    cv=5,
+    scoring='neg_mean_squared_error',
+    n_jobs=-1,  # Use all CPU cores
+    verbose=1
+)
+
+grid_search.fit(X_train, y_train)
+
+print(f"Best parameters: {grid_search.best_params_}")
+print(f"Best CV RMSE: {np.sqrt(-grid_search.best_score_):.4f}")
+```
+
+### RandomSearchCV (Faster for Large Grids)
+
+```python
+from sklearn.model_selection import RandomizedSearchCV
+from scipy.stats import randint, uniform
+
+# Define parameter distributions
+param_dist = {
+    'n_estimators': randint(50, 500),
+    'max_depth': [5, 10, 15, None],
+    'min_samples_split': randint(2, 20),
+    'min_samples_leaf': randint(1, 10),
+    'learning_rate': uniform(0.01, 0.3)
+}
+
+# Randomized search (100 iterations)
+random_search = RandomizedSearchCV(
+    XGBRegressor(random_state=42),
+    param_dist,
+    n_iter=100,
+    cv=5,
+    scoring='neg_mean_squared_error',
+    n_jobs=-1,
+    random_state=42,
+    verbose=1
+)
+
+random_search.fit(X_train, y_train)
+print(f"Best parameters: {random_search.best_params_}")
+```
+
+### XGBoost Native CV
+
+```python
+import xgboost as xgb
+
+# XGBoost cross-validation with early stopping
+cv_results = xgb.cv(
+    params={
+        'max_depth': 6,
+        'learning_rate': 0.1,
+        'objective': 'reg:squarederror'
+    },
+    dtrain=xgb.DMatrix(X_train, label=y_train),
+    num_boost_round=1000,
+    nfold=5,
+    metrics='rmse',
+    early_stopping_rounds=20,
+    seed=42
+)
+
+print(f"Best iteration: {len(cv_results)}")
+print(f"Best CV RMSE: {cv_results['test-rmse-mean'].min():.4f}")
+```
+
+## Sklearn Pipelines
+
+### Basic Pipeline
+
+```python
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.compose import ColumnTransformer
+from sklearn.impute import SimpleImputer
+from sklearn.ensemble import RandomForestRegressor
+
+# Define column types
+numeric_features = ['age', 'income', 'credit_score']
+categorical_features = ['education', 'employment_type']
+
+# Preprocessing for numeric columns
+numeric_transformer = Pipeline(steps=[
+    ('imputer', SimpleImputer(strategy='median')),
+    ('scaler', StandardScaler())
+])
+
+# Preprocessing for categorical columns
+categorical_transformer = Pipeline(steps=[
+    ('imputer', SimpleImputer(strategy='most_frequent')),
+    ('encoder', OneHotEncoder(handle_unknown='ignore'))
+])
+
+# Combine preprocessing
+preprocessor = ColumnTransformer(
+    transformers=[
+        ('num', numeric_transformer, numeric_features),
+        ('cat', categorical_transformer, categorical_features)
+    ])
+
+# Create pipeline
+pipeline = Pipeline(steps=[
+    ('preprocessor', preprocessor),
+    ('model', RandomForestRegressor(n_estimators=100, random_state=42))
+])
+
+# Fit pipeline
+pipeline.fit(X_train, y_train)
+
+# Predict
+predictions = pipeline.predict(X_test)
+```
+
+### Pipeline with GridSearchCV
+
+```python
+from sklearn.model_selection import GridSearchCV
+
+# Create pipeline
+pipeline = Pipeline(steps=[
+    ('preprocessor', preprocessor),
+    ('model', RandomForestRegressor(random_state=42))
+])
+
+# Parameter grid (note: use __ to access nested parameters)
+param_grid = {
+    'model__n_estimators': [50, 100, 200],
+    'model__max_depth': [5, 10, None],
+    'model__min_samples_split': [2, 5]
+}
+
+# Grid search
+grid_search = GridSearchCV(
+    pipeline,
+    param_grid,
+    cv=5,
+    scoring='neg_mean_squared_error',
+    n_jobs=-1
+)
+
+grid_search.fit(X_train, y_train)
+
+print(f"Best parameters: {grid_search.best_params_}")
+print(f"Best CV RMSE: {np.sqrt(-grid_search.best_score_):.4f}")
+```
+
+### Feature Union (Multiple Feature Sets)
+
+```python
+from sklearn.pipeline import FeatureUnion
+from sklearn.decomposition import PCA
+
+# Combine features
+feature_union = FeatureUnion([
+    ('original', preprocessor),
+    ('pca', PCA(n_components=5))
+])
+
+pipeline = Pipeline([
+    ('features', feature_union),
+    ('model', RandomForestRegressor())
+])
+```
+
+### Custom Transformers in Pipeline
+
+```python
+from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.preprocessing import FunctionTransformer
+
+# Custom transformer for feature creation
+class FeatureCreator(BaseEstimator, TransformerMixin):
+    def __init__(self):
+        pass
+    
+    def fit(self, X, y=None):
+        # Compute statistics during fit
+        self.mean_ = X.mean()
+        return self
+    
+    def transform(self, X):
+        X = X.copy()
+        # Create new features
+        X['feature_squared'] = X['feature'] ** 2
+        X['feature_normalized'] = (X['feature'] - self.mean_) / X['feature'].std()
+        return X
+
+# Use in pipeline
+pipeline = Pipeline([
+    ('creator', FeatureCreator()),
+    ('preprocessor', preprocessor),
+    ('model', RandomForestRegressor())
+])
+```
+
+## Complete Training Example
+
+```python
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.compose import ColumnTransformer
+from sklearn.impute import SimpleImputer
+from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
+from sklearn.metrics import mean_squared_error, r2_score
+
+# Load and prepare data
+df = pd.read_csv('data.csv')
+X = df.drop('target', axis=1)
+y = df['target']
+
+# Split data
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42
+)
+
+# Define preprocessing
+numeric_features = X.select_dtypes(include=['int64', 'float64']).columns.tolist()
+categorical_features = X.select_dtypes(include=['object', 'category']).columns.tolist()
+
+preprocessor = ColumnTransformer(
+    transformers=[
+        ('num', Pipeline([
+            ('imputer', SimpleImputer(strategy='median')),
+            ('scaler', StandardScaler())
+        ]), numeric_features),
+        ('cat', Pipeline([
+            ('imputer', SimpleImputer(strategy='most_frequent')),
+            ('encoder', OneHotEncoder(handle_unknown='ignore'))
+        ]), categorical_features)
+    ])
+
+# Create pipeline
+pipeline = Pipeline([
+    ('preprocessor', preprocessor),
+    ('model', RandomForestRegressor(random_state=42))
+])
+
+# Define parameter grid
+param_grid = {
+    'model__n_estimators': [100, 200],
+    'model__max_depth': [10, 20],
+    'model__min_samples_split': [2, 5]
+}
+
+# Grid search
+grid_search = GridSearchCV(
+    pipeline,
+    param_grid,
+    cv=5,
+    scoring='neg_mean_squared_error',
+    n_jobs=-1,
+    verbose=1
+)
+
+# Fit
+grid_search.fit(X_train, y_train)
+
+# Evaluate
+best_model = grid_search.best_estimator_
+y_pred = best_model.predict(X_test)
+
+rmse = np.sqrt(mean_squared_error(y_test, y_pred))
+r2 = r2_score(y_test, y_pred)
+
+print(f"\nBest parameters: {grid_search.best_params_}")
+print(f"Test RMSE: {rmse:.4f}")
+print(f"Test R²: {r2:.4f}")
+```
+
+## Best Practices
+
+### Reproducibility
+
+```python
+# Always set random seeds
+import random
+import numpy as np
+
+RANDOM_STATE = 42
+
+random.seed(RANDOM_STATE)
+np.random.seed(RANDOM_STATE)
+
+# In sklearn models
+model = RandomForestRegressor(random_state=RANDOM_STATE)
+```
+
+### Avoiding Data Leakage
+
+```python
+# BAD: Fitting preprocessor on all data
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X)  # Leaking test info
+X_train, X_test, y_train, y_test = train_test_split(X_scaled, y)
+
+# GOOD: Fit scaler only on training data
+X_train, X_test, y_train, y_test = train_test_split(X, y)
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)  # Transform, not fit_transform
+
+# Or use Pipeline (recommended)
+pipeline = Pipeline([
+    ('scaler', StandardScaler()),
+    ('model', RandomForestRegressor())
+])
+
+pipeline.fit(X_train, y_train)  # Scaler fit on train only
+pipeline.predict(X_test)
+```
+
+### Memory Optimization
+
+```python
+# For large datasets
+from sklearn.model_selection import train_test_split
+
+# Use a smaller initial split for experimentation
+X_sample, _, y_sample, _ = train_test_split(
+    X, y, train_size=10000, random_state=42
+)
+
+# Tune on sample, then train final model on full data
+```
+
+### Training Time Estimation
+
+```python
+import time
+
+start_time = time.time()
+model.fit(X_train, y_train)
+training_time = time.time() - start_time
+
+start_time = time.time()
+predictions = model.predict(X_test)
+prediction_time = time.time() - start_time
+
+print(f"Training time: {training_time:.2f}s")
+print(f"Prediction time: {prediction_time:.2f}s")
+print(f"Samples per second: {len(X_test)/prediction_time:.0f}")
+```
+
+## Common Pitfalls
+
+### Overfitting Due to Data Leakage
+
+```python
+# WRONG: Target encoding before split
+df['encoded'] = df.groupby('category')['target'].transform('mean')
+X_train, X_test = train_test_split(df)
+
+# RIGHT: Encode within cross-validation or after split
+# Use sklearn's TargetEncoder or create custom transformer
+```
+
+### Wrong CV Strategy
+
+```python
+# WRONG: Random CV for time series
+cv = KFold(n_splits=5)  # Shuffles data, breaks temporal order
+
+# RIGHT: TimeSeriesSplit for time series
+cv = TimeSeriesSplit(n_splits=5)
+```
+
+### Not Using Pipeline
+
+```python
+# WRONG: Manual preprocessing outside pipeline
+X_train = imputer.fit_transform(X_train)
+X_train = scaler.fit_transform(X_train)
+model.fit(X_train, y_train)
+
+X_test = imputer.transform(X_test)  # Different imputer state!
+X_test = scaler.transform(X_test)
+predictions = model.predict(X_test)
+
+# RIGHT: Use pipeline
+pipeline = Pipeline([
+    ('imputer', SimpleImputer()),
+    ('scaler', StandardScaler()),
+    ('model', RandomForestRegressor())
+])
+
+pipeline.fit(X_train, y_train)
+predictions = pipeline.predict(X_test)
+```

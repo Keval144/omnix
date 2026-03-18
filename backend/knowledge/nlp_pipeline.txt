@@ -1,19 +1,654 @@
-NLP datasets contain text.
+# NLP Pipeline
 
-Pipeline:
+## Overview
 
-Text cleaning
-Tokenization
-Stopword removal
-Vectorization
+Natural Language Processing (NLP) deals with text data. This guide covers the complete pipeline from raw text to model predictions, including text classification, sentiment analysis, and language modeling.
 
-Models:
+## Pipeline Steps
 
-TF-IDF + Logistic Regression
-RNN
-Transformer
+```
+1. Data Loading
+2. Text Cleaning
+3. Tokenization
+4. Text Preprocessing
+5. Vectorization/Embedding
+6. Feature Engineering
+7. Model Training
+8. Evaluation
+```
 
-Metrics:
+## Text Data Loading
 
-Accuracy
-F1 Score
+```python
+import pandas as pd
+
+# Load text data
+df = pd.read_csv('text_data.csv')
+
+# Basic exploration
+print(f"Shape: {df.shape}")
+print(f"\nSample texts:")
+print(df.head())
+
+# Text length statistics
+df['text_length'] = df['text'].str.len()
+df['word_count'] = df['text'].str.split().str.len()
+
+print(f"\nText length stats:")
+print(df['text_length'].describe())
+
+print(f"\nWord count stats:")
+print(df['word_count'].describe())
+```
+
+## Text Cleaning
+
+### Basic Text Cleaning
+
+```python
+import re
+import string
+
+def clean_text(text):
+    """Basic text cleaning pipeline."""
+    if pd.isna(text):
+        return ""
+    
+    text = str(text)
+    
+    # Lowercase
+    text = text.lower()
+    
+    # Remove URLs
+    text = re.sub(r'http\S+|www\S+|https\S+', '', text)
+    
+    # Remove HTML tags
+    text = re.sub(r'<.*?>', '', text)
+    
+    # Remove special characters and numbers (optional)
+    text = re.sub(r'[^a-zA-Z\s]', '', text)
+    
+    # Remove extra whitespace
+    text = re.sub(r'\s+', ' ', text).strip()
+    
+    return text
+
+# Apply cleaning
+df['text_clean'] = df['text'].apply(clean_text)
+
+print("Sample cleaned text:")
+print(df['text_clean'].iloc[0])
+```
+
+### Advanced Text Cleaning
+
+```python
+import unicodedata
+
+def advanced_clean_text(text):
+    """Advanced text cleaning with normalization."""
+    if pd.isna(text):
+        return ""
+    
+    text = str(text)
+    
+    # Normalize unicode characters
+    text = unicodedata.normalize('NFKD', text).encode('ascii', 'ignore').decode('ascii')
+    
+    # Lowercase
+    text = text.lower()
+    
+    # Remove URLs
+    text = re.sub(r'http\S+|www\S+|https\S+', '', text)
+    
+    # Remove email addresses
+    text = re.sub(r'\S+@\S+', '', text)
+    
+    # Remove mentions and hashtags
+    text = re.sub(r'@\w+|#\w+', '', text)
+    
+    # Remove HTML entities
+    text = re.sub(r'&\w+;', '', text)
+    
+    # Remove numbers (keep if important)
+    text = re.sub(r'\d+', '', text)
+    
+    # Remove punctuation
+    text = text.translate(str.maketrans('', '', string.punctuation))
+    
+    # Remove extra whitespace
+    text = ' '.join(text.split())
+    
+    return text
+
+df['text_clean'] = df['text'].apply(advanced_clean_text)
+```
+
+### Before/After Cleaning
+
+```
+BEFORE:
+"Check out https://example.com! 🎉 Amazing product... #love it @user123"
+
+AFTER:
+"check out amazing product love it"
+```
+
+## Tokenization
+
+### Word Tokenization
+
+```python
+# Using nltk
+import nltk
+nltk.download('punkt')
+nltk.download('punkt_tab')
+
+from nltk.tokenize import word_tokenize
+
+text = "This is an example sentence for tokenization."
+tokens = word_tokenize(text)
+print(tokens)
+# ['This', 'is', 'an', 'example', 'sentence', 'for', 'tokenization', '.']
+
+# Using spaCy (recommended for production)
+# pip install spacy
+# python -m spacy download en_core_web_sm
+
+import spacy
+nlp = spacy.load("en_core_web_sm")
+
+doc = nlp("This is an example sentence for tokenization.")
+tokens = [token.text for token in doc]
+print(tokens)
+
+# Using transformers
+from transformers import AutoTokenizer
+
+tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased")
+tokens = tokenizer.tokenize("This is an example sentence.")
+print(tokens)
+# ['this', 'is', 'an', 'example', 'sentence', '.']
+```
+
+### Sentence Tokenization
+
+```python
+from nltk.tokenize import sent_tokenize
+
+text = "This is first sentence. This is second! And third?"
+sentences = sent_tokenize(text)
+print(sentences)
+# ['This is first sentence.', 'This is second!', 'And third?']
+```
+
+### Subword Tokenization (for Transformers)
+
+```python
+from transformers import AutoTokenizer
+
+tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased")
+
+# Tokenize with special tokens
+encoded = tokenizer("Hello world!", return_tensors="pt")
+print(encoded)
+
+# Decode
+decoded = tokenizer.decode(encoded['input_ids'][0])
+print(decoded)
+```
+
+## Stopword Removal
+
+```python
+import nltk
+nltk.download('stopwords')
+
+from nltk.corpus import stopwords
+
+stop_words = set(stopwords.words('english'))
+
+def remove_stopwords(text):
+    words = text.split()
+    words = [w for w in words if w not in stop_words]
+    return ' '.join(words)
+
+df['text_no_stop'] = df['text_clean'].apply(remove_stopwords)
+
+# Custom stopwords
+custom_stopwords = stop_words | {'would', 'could', 'also', 'one'}
+df['text_custom_stop'] = df['text_clean'].apply(
+    lambda x: ' '.join([w for w in x.split() if w not in custom_stopwords])
+)
+```
+
+## Stemming and Lemmatization
+
+```python
+import nltk
+nltk.download('wordnet')
+nltk.download('omw-1.4')
+
+from nltk.stem import PorterStemmer, LancasterStemmer, WordNetLemmatizer
+
+stemmer = PorterStemmer()
+lemmatizer = WordNetLemmatizer()
+
+text = "running runners ran easily"
+
+# Stemming (faster, less accurate)
+stemmed = [stemmer.stem(word) for word in text.split()]
+print(f"Stemmed: {stemmed}")
+# ['run', 'runner', 'ran', 'easili']
+
+# Lemmatization (slower, more accurate)
+lemmatized = [lemmatizer.lemmatize(word) for word in text.split()]
+print(f"Lemmatized: {lemmatized}")
+# ['running', 'runner', 'ran', 'easily']
+
+# With POS tagging (more accurate)
+nltk.download('averaged_perceptron_tagger')
+nltk.download('averaged_perceptron_tagger_eng')
+
+def lemmatize_with_pos(text):
+    doc = nlp(text)
+    return ' '.join([token.lemma_ for token in doc])
+
+df['text_lemmatized'] = df['text_no_stop'].apply(lemmatize_with_pos)
+```
+
+## Text Vectorization
+
+### Bag of Words (BoW)
+
+```python
+from sklearn.feature_extraction.text import CountVectorizer
+
+vectorizer = CountVectorizer(max_features=5000)
+
+X = vectorizer.fit_transform(df['text_clean'])
+
+print(f"Vocabulary size: {len(vectorizer.vocabulary_)}")
+print(f"Feature matrix shape: {X.shape}")
+
+# Get feature names
+feature_names = vectorizer.get_feature_names_out()
+print(f"Sample features: {feature_names[:10]}")
+
+# Transform new text
+new_text = ["This is a new example sentence"]
+new_vector = vectorizer.transform(new_text)
+print(f"New text vector: {new_vector.toarray()}")
+```
+
+### TF-IDF (Term Frequency-Inverse Document Frequency)
+
+```python
+from sklearn.feature_extraction.text import TfidfVectorizer
+
+# TF-IDF Vectorizer
+tfidf = TfidfVectorizer(
+    max_features=5000,
+    min_df=2,           # Ignore terms appearing in less than 2 documents
+    max_df=0.95,        # Ignore terms appearing in more than 95% of documents
+    ngram_range=(1, 2), # Unigrams and bigrams
+    stop_words='english'
+)
+
+X = tfidf.fit_transform(df['text_clean'])
+
+print(f"Vocabulary size: {len(tfidf.vocabulary_)}")
+print(f"Feature matrix shape: {X.shape}")
+
+# TF-IDF scores for a document
+sample_tfidf = X[0].toarray()[0]
+top_indices = sample_tfidf.argsort()[-5:][::-1]
+print(f"Top TF-IDF terms: {[feature_names[i] for i in top_indices]}")
+```
+
+### Word Embeddings (Word2Vec, GloVe, FastText)
+
+```python
+# Using gensim for Word2Vec
+# pip install gensim
+
+from gensim.models import Word2Vec
+
+# Prepare corpus
+corpus = [text.split() for text in df['text_clean']]
+
+# Train Word2Vec
+model = Word2Vec(
+    sentences=corpus,
+    vector_size=100,    # Embedding dimension
+    window=5,           # Context window
+    min_count=2,        # Ignore words with frequency < 2
+    workers=4,         # Parallel threads
+    epochs=10
+)
+
+# Get word vector
+word_vector = model.wv['example']
+print(f"Vector shape: {word_vector.shape}")
+
+# Find similar words
+similar = model.wv.most_similar('machine', topn=5)
+print(f"Similar to 'machine': {similar}")
+
+# Average word vectors for document
+def document_vector(doc, model):
+    doc = [word for word in doc.split() if word in model.wv]
+    if len(doc) == 0:
+        return np.zeros(100)
+    return np.mean(model.wv[doc], axis=0)
+
+df['doc_vector'] = df['text_clean'].apply(lambda x: document_vector(x, model))
+```
+
+### Sentence Embeddings (Transformers)
+
+```python
+from sentence_transformers import SentenceTransformer
+
+# Load pretrained model
+model = SentenceTransformer('all-MiniLM-L6-v2')
+
+# Encode sentences
+embeddings = model.encode(df['text_clean'].tolist())
+
+print(f"Embeddings shape: {embeddings.shape}")
+
+# Encode single sentence
+query_embedding = model.encode("This is a query sentence")
+```
+
+## NLP Classification Pipeline
+
+### Traditional ML Approach (TF-IDF + Classifier)
+
+```python
+from sklearn.model_selection import train_test_split
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.svm import LinearSVC
+from sklearn.metrics import classification_report, accuracy_score
+
+# Split data
+X_train, X_test, y_train, y_test = train_test_split(
+    df['text_clean'], df['label'], test_size=0.2, random_state=42, stratify=df['label']
+)
+
+# TF-IDF Vectorization
+tfidf = TfidfVectorizer(max_features=5000, ngram_range=(1, 2))
+X_train_tfidf = tfidf.fit_transform(X_train)
+X_test_tfidf = tfidf.transform(X_test)
+
+# Train Logistic Regression
+lr = LogisticRegression(max_iter=1000, random_state=42)
+lr.fit(X_train_tfidf, y_train)
+y_pred_lr = lr.predict(X_test_tfidf)
+
+print("Logistic Regression Results:")
+print(classification_report(y_test, y_pred_lr))
+
+# Train SVM
+svm = LinearSVC(random_state=42)
+svm.fit(X_train_tfidf, y_train)
+y_pred_svm = svm.predict(X_test_tfidf)
+
+print("SVM Results:")
+print(classification_report(y_test, y_pred_svm))
+```
+
+### Transformer-Based Approach
+
+```python
+from transformers import pipeline, AutoTokenizer, AutoModelForSequenceClassification
+from sklearn.metrics import classification_report
+
+# Use pretrained sentiment analysis model
+sentiment_pipeline = pipeline("sentiment-analysis")
+
+# Classify single text
+result = sentiment_pipeline("This movie was fantastic!")
+print(result)
+# [{'label': 'POSITIVE', 'score': 0.9998}]
+
+# Batch classification
+texts = [
+    "I love this product!",
+    "This is terrible.",
+    "It's okay, nothing special."
+]
+results = sentiment_pipeline(texts)
+print(results)
+
+# Fine-tune for custom task
+model_name = "distilbert-base-uncased"
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+model = AutoModelForSequenceClassification.from_pretrained(
+    model_name, 
+    num_labels=3
+)
+
+# Prepare data
+encoded = tokenizer(
+    df['text_clean'].tolist(),
+    padding=True,
+    truncation=True,
+    max_length=512,
+    return_tensors="pt"
+)
+```
+
+## Named Entity Recognition (NER)
+
+```python
+import spacy
+
+nlp = spacy.load("en_core_web_sm")
+
+text = "Apple Inc. was founded by Steve Jobs in California in 1976."
+doc = nlp(text)
+
+# Extract entities
+for ent in doc.ents:
+    print(f"{ent.text} - {ent.label_} ({spacy.explain(ent.label_)})")
+
+# Output:
+# Apple Inc. - ORG (Companies, agencies, institutions)
+# Steve Jobs - PERSON (People, including fictional)
+# California - GPE (Countries, cities, states)
+# 1976 - DATE (Absolute or relative dates or periods)
+```
+
+## Text Generation
+
+```python
+from transformers import pipeline, AutoTokenizer, AutoModelForCausalLM
+
+# Text generation pipeline
+generator = pipeline("text-generation", model="gpt2")
+
+# Generate text
+result = generator(
+    "Once upon a time in a distant land,",
+    max_length=50,
+    num_return_sequences=2,
+    temperature=0.7
+)
+
+for text in result:
+    print(text['generated_text'])
+```
+
+## NLP Evaluation Metrics
+
+```python
+from sklearn.metrics import (
+    accuracy_score, precision_score, recall_score, f1_score,
+    classification_report, confusion_matrix
+)
+
+# For classification
+y_pred = model.predict(X_test)
+
+print(f"Accuracy: {accuracy_score(y_test, y_pred):.4f}")
+print(f"Precision: {precision_score(y_test, y_pred, average='weighted'):.4f}")
+print(f"Recall: {recall_score(y_test, y_pred, average='weighted'):.4f}")
+print(f"F1: {f1_score(y_test, y_pred, average='weighted'):.4f}")
+
+print("\nClassification Report:")
+print(classification_report(y_test, y_pred))
+```
+
+### Perplexity (Language Models)
+
+```python
+# Calculate perplexity for language models
+import math
+
+def calculate_perplexity(model, tokenizer, text):
+    encodings = tokenizer(text, return_tensors="pt")
+    input_ids = encodings['input_ids']
+    
+    with torch.no_grad():
+        outputs = model(input_ids, labels=input_ids)
+        loss = outputs.loss
+    
+    perplexity = math.exp(loss.item())
+    return perplexity
+
+perplexity = calculate_perplexity(model, tokenizer, "This is a test sentence.")
+print(f"Perplexity: {perplexity:.2f}")
+```
+
+## Complete NLP Pipeline Example
+
+```python
+import pandas as pd
+import numpy as np
+import re
+from sklearn.model_selection import train_test_split
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.linear_model import LogisticRegression
+from sklearn.pipeline import Pipeline
+from sklearn.metrics import classification_report, accuracy_score
+import nltk
+from nltk.corpus import stopwords
+
+# Download NLTK data
+nltk.download('punkt')
+nltk.download('stopwords')
+
+# 1. Load data
+df = pd.read_csv('text_classification.csv')
+
+# 2. Text preprocessing function
+def preprocess_text(text):
+    if pd.isna(text):
+        return ""
+    
+    text = str(text).lower()
+    text = re.sub(r'http\S+', '', text)  # Remove URLs
+    text = re.sub(r'@\w+', '', text)     # Remove mentions
+    text = re.sub(r'#\w+', '', text)    # Remove hashtags
+    text = re.sub(r'[^a-zA-Z\s]', '', text)  # Keep only letters
+    text = re.sub(r'\s+', ' ', text).strip()  # Remove extra spaces
+    
+    # Tokenize and remove stopwords
+    stop_words = set(stopwords.words('english'))
+    words = text.split()
+    words = [w for w in words if w not in stop_words and len(w) > 2]
+    
+    return ' '.join(words)
+
+# 3. Preprocess
+df['text_clean'] = df['text'].apply(preprocess_text)
+
+# 4. Split data
+X_train, X_test, y_train, y_test = train_test_split(
+    df['text_clean'], df['label'],
+    test_size=0.2, random_state=42, stratify=df['label']
+)
+
+# 5. Create pipeline
+pipeline = Pipeline([
+    ('tfidf', TfidfVectorizer(
+        max_features=5000,
+        ngram_range=(1, 2),
+        min_df=2
+    )),
+    ('classifier', LogisticRegression(max_iter=1000, random_state=42))
+])
+
+# 6. Train
+pipeline.fit(X_train, y_train)
+
+# 7. Evaluate
+y_pred = pipeline.predict(X_test)
+
+print(f"Accuracy: {accuracy_score(y_test, y_pred):.4f}")
+print("\nClassification Report:")
+print(classification_report(y_test, y_pred))
+
+# 8. Predict new text
+new_text = ["This is an amazing product! Highly recommend."]
+prediction = pipeline.predict(new_text)
+print(f"\nPrediction: {prediction}")
+```
+
+## Common Pitfalls
+
+### Text Cleaning Mistakes
+
+```python
+# BAD: Removing all punctuation
+# Loses important semantic information (emoticons, exclamation marks)
+text = re.sub(r'[^\w\s]', '', text)
+
+# GOOD: Selective cleaning
+# Keep emoticons if relevant for sentiment analysis
+text = re.sub(r'http\S+', '', text)  # Only remove URLs
+```
+
+### Data Leakage
+
+```python
+# BAD: TF-IDF on entire dataset before split
+tfidf = TfidfVectorizer()
+X_tfidf = tfidf.fit_transform(df['text'])  # LEAKAGE!
+X_train, X_test = train_test_split(X_tfidf)
+
+# GOOD: Fit only on training data
+X_train, X_test, y_train, y_test = train_test_split(df['text'], df['label'])
+tfidf = TfidfVectorizer()
+X_train_tfidf = tfidf.fit_transform(X_train)
+X_test_tfidf = tfidf.transform(X_test)  # Transform, don't fit!
+```
+
+### Ignoring Class Imbalance
+
+```python
+# BAD: Not handling imbalanced classes
+model = LogisticRegression()
+model.fit(X_train, y_train)
+
+# GOOD: Use class weights or oversampling
+model = LogisticRegression(class_weight='balanced')
+model.fit(X_train, y_train)
+```
+
+## Best Practices
+
+- [ ] Clean text appropriately for your task
+- [ ] Handle missing/empty text
+- [ ] Use stratified splits for classification
+- [ ] Consider TF-IDF vs embeddings based on task
+- [ ] Use pretrained models for small datasets
+- [ ] Monitor for data leakage
+- [ ] Use appropriate evaluation metrics
+- [ ] Consider domain-specific preprocessing
+- [ ] Test with real-world text variations
+- [ ] Monitor for model drift over time

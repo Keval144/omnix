@@ -1,0 +1,744 @@
+# Data Cleaning
+
+## Overview
+
+Data cleaning is the first and most critical step in any ML pipeline. Poor quality data leads to poor quality models regardless of algorithm choice.
+
+## Missing Values
+
+### Detecting Missing Values
+
+```python
+import pandas as pd
+import numpy as np
+
+# Check missing values
+missing_counts = df.isnull().sum()
+missing_pct = (df.isnull().sum() / len(df)) * 100
+
+# Create summary dataframe
+missing_summary = pd.DataFrame({
+    'missing_count': missing_counts,
+    'missing_pct': missing_pct
+}).sort_values('missing_pct', ascending=False)
+
+print(missing_summary[missing_summary['missing_pct'] > 0])
+```
+
+### Imputation Strategies
+
+#### Mean Imputation (Numeric Features)
+
+**When to use:** Data is normally distributed without significant outliers.
+
+```python
+# BAD: Dropping rows with missing values (loses data)
+df_clean = df.dropna(subset=['feature'])
+
+# GOOD: Mean imputation
+df['feature'] = df['feature'].fillna(df['feature'].mean())
+```
+
+**Complete Example:**
+```python
+# Mean imputation for numeric columns
+numeric_cols = df.select_dtypes(include=[np.number]).columns
+
+for col in numeric_cols:
+    if df[col].isnull().sum() > 0:
+        df[col] = df[col].fillna(df[col].mean())
+```
+
+#### Median Imputation (Numeric Features)
+
+**When to use:** Data has outliers or is skewed.
+
+```python
+# Median is robust to outliers
+df['feature'] = df['feature'].fillna(df['feature'].median())
+```
+
+**Example with Skewed Data:**
+```python
+import numpy as np
+
+# Income data is often right-skewed (few high earners)
+# Mean would pull up, median is more representative
+
+print(f"Mean: {df['income'].mean()}")      # $85,000 (skewed by outliers)
+print(f"Median: {df['income'].median()}")  # $52,000 (more representative)
+
+df['income'] = df['income'].fillna(df['income'].median())
+```
+
+#### Mode Imputation (Categorical Features)
+
+```python
+# Most frequent value imputation
+df['category'] = df['category'].fillna(df['category'].mode()[0])
+```
+
+#### Forward Fill / Backward Fill (Time Series)
+
+```python
+# Use previous value (forward fill)
+df['feature'] = df['feature'].fillna(method='ffill')
+
+# Use next value (backward fill)
+df['feature'] = df['feature'].fillna(method='bfill')
+```
+
+### Advanced Imputation Methods
+
+#### KNN Imputation
+
+```python
+from sklearn.impute import KNNImputer
+
+# More accurate than simple imputation
+imputer = KNNImputer(n_neighbors=5)
+
+# Select numeric columns for imputation
+numeric_df = df.select_dtypes(include=[np.number])
+df_imputed = pd.DataFrame(
+    imputer.fit_transform(numeric_df),
+    columns=numeric_df.columns,
+    index=numeric_df.index
+)
+
+df[numeric_df.columns] = df_imputed
+```
+
+#### Iterative Imputation (Multivariate)
+
+```python
+from sklearn.experimental import enable_iterative_imputer
+from sklearn.impute import IterativeImputer
+
+imputer = IterativeImputer(max_iter=10, random_state=42)
+df_imputed = pd.DataFrame(
+    imputer.fit_transform(df.select_dtypes(include=[np.number])),
+    columns=df.select_dtypes(include=[np.number]).columns
+)
+```
+
+### Missing Value Decision Tree
+
+```
+Is the feature important for the model?
+├── YES: Try to recover the value
+│   ├── Time series? → Forward/backward fill
+│   ├── Related to other features? → KNN or Iterative imputation
+│   └── No clear pattern? → Mean/Median/Mode
+└── NO: Consider dropping the feature
+    └── If >50-70% missing → Drop feature
+```
+
+## Duplicate Removal
+
+### Identifying Duplicates
+
+```python
+# Find duplicate rows
+duplicates = df[df.duplicated()]
+print(f"Found {len(duplicates)} duplicate rows")
+
+# Find duplicates in specific columns
+duplicates = df[df.duplicated(subset=['id', 'email'], keep=False)]
+```
+
+### Removing Duplicates
+
+```python
+# BAD: Keeping duplicates (biased model, inflated metrics)
+# df_with_dupes = df
+
+# GOOD: Remove duplicates
+df_clean = df.drop_duplicates()
+
+# Keep first occurrence
+df_clean = df.drop_duplicates(keep='first')
+
+# Keep last occurrence
+df_clean = df.drop_duplicates(keep='last')
+
+# Remove duplicates based on specific columns
+df_clean = df.drop_duplicates(subset=['id', 'timestamp'], keep='first')
+```
+
+### ⚠️ Warning: Duplicate Removal Caveats
+
+```python
+# Sometimes duplicates are legitimate (multiple customers with same info)
+# Check before blindly removing
+
+# DON'T DO THIS without investigation
+df_clean = df.drop_duplicates()
+
+# DO THIS instead
+print(f"Total rows: {len(df)}")
+print(f"Duplicates: {df.duplicated().sum()}")
+
+# Investigate duplicates
+if df.duplicated().sum() > 0:
+    print(df[df.duplicated(keep=False)].head(10))
+    # Decide based on business logic
+```
+
+## Fixing Incorrect Data Types
+
+### Detecting Type Issues
+
+```python
+# Current dtypes
+print(df.dtypes)
+
+# Common issues to look for
+# - Numbers stored as strings: '123' instead of 123
+# - Dates stored as strings: '2024-01-01' instead of datetime
+# - Categories stored as 'object' when they should be 'category'
+# - IDs stored as int when they should be str
+```
+
+### Fixing Data Types
+
+```python
+# BAD: Mixing types in column
+# df['price'] = ['100', '200', 'not_available', 300]  # Messy!
+
+# GOOD: Consistent typing
+
+# String to numeric
+df['price'] = pd.to_numeric(df['price'], errors='coerce')  # 'not_available' → NaN
+
+# String to datetime
+df['date'] = pd.to_datetime(df['date'], format='%Y-%m-%d', errors='coerce')
+
+# Object to category (memory efficient)
+df['status'] = df['status'].astype('category')
+
+# String to category
+df['region'] = df['region'].astype('category')
+
+# Check conversion success
+print(df.dtypes)
+```
+
+### DateTime Handling
+
+```python
+# Parse dates from various formats
+df['date'] = pd.to_datetime(df['date'], infer_datetime_format=True)
+
+# Extract date components
+df['year'] = df['date'].dt.year
+df['month'] = df['date'].dt.month
+df['day'] = df['date'].dt.day
+df['dayofweek'] = df['date'].dt.dayofweek
+df['quarter'] = df['date'].dt.quarter
+
+# Time differences
+df['days_since_start'] = (df['date'] - df['date'].min()).dt.days
+
+# Age from date
+df['age_years'] = (pd.Timestamp.now() - df['birth_date']).dt.days / 365.25
+```
+
+### Numeric Type Optimization
+
+```python
+# Reduce memory usage for large datasets
+
+# Check current memory usage
+print(df.memory_usage(deep=True))
+
+# Convert float64 to float32 (saves 50% memory)
+float_cols = df.select_dtypes(include=['float64']).columns
+df[float_cols] = df[float_cols].astype('float32')
+
+# Convert int64 to int32/int16
+int_cols = df.select_dtypes(include=['int64']).columns
+df[int_cols] = df[int_cols].astype('int32')
+
+# Convert object to category (if few unique values)
+for col in df.select_dtypes(include=['object']).columns:
+    if df[col].nunique() / len(df) < 0.5:  # Less than 50% unique
+        df[col] = df[col].astype('category')
+```
+
+## Handling Inconsistent Categorical Values
+
+### Common Issues
+
+```python
+# Inconsistent values that should be the same:
+# - 'New York', 'NY', 'new york', 'N.Y.'
+# - 'Male', 'male', 'MALE', 'm'
+# - 'Yes', 'yes', 'Y', '1', 'True'
+# - 'High', 'HIGH', '  High  ', 'HIGH '
+```
+
+### Standardizing Categories
+
+```python
+# Strip whitespace and lowercase
+df['category'] = df['category'].str.strip().str.lower()
+
+# Standardize specific values
+category_mapping = {
+    'new york': 'ny',
+    'nyc': 'ny',
+    'n.y.': 'ny',
+    'male': 'm',
+    'm': 'male',
+    'female': 'f',
+    'f': 'female',
+    'yes': 'y',
+    'y': 'yes',
+    'no': 'n',
+    'n': 'no',
+    'true': 'yes',
+    'false': 'no',
+    '1': 'yes',
+    '0': 'no'
+}
+
+df['category'] = df['category'].map(category_mapping).fillna(df['category'])
+```
+
+### Fuzzy Matching
+
+```python
+from difflib import get_close_matches
+
+def standardize_category(value, valid_categories):
+    """Standardize to closest valid category."""
+    if pd.isna(value):
+        return value
+    
+    value_lower = str(value).strip().lower()
+    
+    # Direct match
+    if value_lower in valid_categories:
+        return value_lower
+    
+    # Fuzzy match
+    matches = get_close_matches(value_lower, valid_categories, n=1, cutoff=0.6)
+    if matches:
+        return matches[0]
+    
+    return value_lower  # Keep original if no match
+
+valid_cats = ['small', 'medium', 'large']
+df['size'] = df['size'].apply(lambda x: standardize_category(x, valid_cats))
+```
+
+### Using recordlinkage Library
+
+```python
+# pip install recordlinkage
+
+import recordlinkage
+
+# For large-scale deduplication and standardization
+indexer = recordlinkage.Index()
+indexer.block('name')
+pairs = indexer.index(df, df)
+
+comparer = recordlinkage.Compare()
+comparer.string('name', 'name', label='name_sim')
+comparer.exact('city', 'city', label='city_match')
+features = comparer.compute(pairs, df, df)
+```
+
+## Outlier Detection
+
+### IQR Method (Interquartile Range)
+
+```python
+def detect_outliers_iqr(df, column, multiplier=1.5):
+    """
+    Detect outliers using IQR method.
+    
+    IQR = Q3 - Q1
+    Lower bound = Q1 - (multiplier * IQR)
+    Upper bound = Q3 + (multiplier * IQR)
+    
+    Default multiplier 1.5: Standard outliers
+    Multiplier 3.0: Extreme outliers
+    """
+    Q1 = df[column].quantile(0.25)
+    Q3 = df[column].quantile(0.75)
+    IQR = Q3 - Q1
+    
+    lower_bound = Q1 - (multiplier * IQR)
+    upper_bound = Q3 + (multiplier * IQR)
+    
+    outliers = df[(df[column] < lower_bound) | (df[column] > upper_bound)]
+    
+    return outliers, lower_bound, upper_bound
+
+# Example usage
+outliers, lower, upper = detect_outliers_iqr(df, 'price')
+print(f"Lower bound: {lower}, Upper bound: {upper}")
+print(f"Outliers found: {len(outliers)}")
+```
+
+### Z-Score Method
+
+```python
+from scipy import stats
+
+def detect_outliers_zscore(df, column, threshold=3):
+    """
+    Detect outliers using Z-score method.
+    
+    Z-score = (value - mean) / std
+    Values with |Z-score| > threshold are outliers
+    """
+    z_scores = np.abs(stats.zscore(df[column], nan_policy='omit'))
+    outliers = df[z_scores > threshold]
+    
+    return outliers, z_scores
+
+# Example usage
+outliers, z_scores = detect_outliers_zscore(df, 'price', threshold=3)
+print(f"Outliers found: {len(outliers)}")
+print(f"Max Z-score: {z_scores.max():.2f}")
+```
+
+### Handling Outliers
+
+```python
+# Option 1: Remove outliers (when they're errors)
+# ONLY if outliers are clearly data entry errors
+
+df_clean = df[
+    (df['price'] >= lower_bound) & 
+    (df['price'] <= upper_bound)
+]
+
+# Option 2: Cap outliers (Winsorization)
+# Replace extreme values with boundary values
+
+df['price_capped'] = df['price'].clip(lower=lower_bound, upper=upper_bound)
+
+# Option 3: Transform data (log transform)
+# Reduces impact of outliers
+
+df['price_log'] = np.log1p(df['price'])  # log(1 + x) handles zeros
+
+# Option 4: Use robust scaling/algorithms
+# See feature_engineering.txt for scaling methods
+```
+
+### Visualization of Outliers
+
+```python
+import matplotlib.pyplot as plt
+
+fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+
+# Boxplot
+axes[0].boxplot(df['price'].dropna())
+axes[0].set_title('Boxplot - Outlier Visualization')
+axes[0].set_ylabel('Price')
+
+# Histogram with IQR bounds
+axes[1].hist(df['price'].dropna(), bins=50, edgecolor='black', alpha=0.7)
+axes[1].axvline(lower_bound, color='red', linestyle='--', label=f'Lower: {lower_bound:.2f}')
+axes[1].axvline(upper_bound, color='red', linestyle='--', label=f'Upper: {upper_bound:.2f}')
+axes[1].set_title('Histogram with IQR Bounds')
+axes[1].legend()
+
+plt.tight_layout()
+plt.show()
+```
+
+## Bad → Clean Dataset Transformation
+
+### Complete Data Cleaning Example
+
+```python
+import pandas as pd
+import numpy as np
+from sklearn.impute import SimpleImputer, KNNImputer
+
+# ============================================
+# RAW DATA (BAD)
+# ============================================
+raw_data = {
+    'id': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+    'name': ['John', 'jane', 'JIM', 'Alice', 'Bob', 'alice', 'John', 'Eve', '    Tom', 'Sam'],
+    'age': [25, 'thirty', 35, None, 45, 40, 28, 'forty five', 32, 38],
+    'salary': ['50000', '60000', 'not_available', '75000', '55k', '65000', None, '70000', '80k', '90000'],
+    'city': ['New York', 'NYC', 'new york', 'NY', 'Chicago', 'LA', 'los angeles', 'Seattle', 'seattle', 'Boston'],
+    'join_date': ['2023-01-15', '2023-02-20', '2023-03-10', 'not_provided', '2023-05-01', 
+                  '2023-06-15', '2023-07-20', 'invalid', '2023-09-01', '2023-10-10'],
+    'status': ['active', 'Active', 'ACTIVE', 'inactive', 'Active', 'active', 'A', 'ACTIVE', 'Inactive', 'active'],
+    'score': [85, 90, 95, 100, 200, 88, 92, 87, 91, 89]  # 200 is clearly an outlier
+}
+
+df = pd.DataFrame(raw_data)
+print("=== RAW DATA ===")
+print(df)
+print(f"\nShape: {df.shape}")
+```
+
+**Output:**
+```
+=== RAW DATA ===
+   id   name   age salary      city    join_date  status  score
+0   1   John    25   50000    New York   2023-01-15  active     85
+1   2   jane  thirty   60000        NYC   2023-02-20  Active     90
+2   3    JIM    35   not_available  new york   2023-03-10  ACTIVE     95
+3   4  Alice   None      75000        NY   not_provided  inactive    100
+4   5    Bob    45     55k      Chicago      2023-05-01  Active     200
+5   6  alice    40     65000        LA   2023-06-15  active     88
+6   7   John    28     None      los angeles   2023-07-20      A     92
+7   8    Eve forty five   70000    Seattle         invalid  ACTIVE     87
+8   9    Tom    32     80k      seattle   2023-09-01  Inactive     91
+9  10    Sam    38     90k     Boston   2023-10-10  active     89
+```
+
+```python
+# ============================================
+# CLEANING PROCESS
+# ============================================
+
+# 1. Remove duplicates
+df_clean = df.drop_duplicates()
+print(f"\nAfter removing duplicates: {len(df_clean)} rows")
+
+# 2. Fix data types
+# Age: convert to numeric
+df_clean['age'] = pd.to_numeric(df_clean['age'], errors='coerce')
+
+# Salary: extract numeric values
+def parse_salary(val):
+    if pd.isna(val) or val == 'not_available':
+        return np.nan
+    val = str(val).lower().replace('k', '000').replace(',', '')
+    try:
+        return float(val)
+    except:
+        return np.nan
+
+df_clean['salary'] = df_clean['salary'].apply(parse_salary)
+
+# Join date: convert to datetime
+df_clean['join_date'] = pd.to_datetime(df_clean['join_date'], errors='coerce')
+
+# 3. Standardize categorical variables
+df_clean['name'] = df_clean['name'].str.strip().str.title()
+df_clean['city'] = df_clean['city'].str.strip().str.title()
+df_clean['city'] = df_clean['city'].replace({'Ny': 'Ny', 'Nyc': 'Ny', 'Los Angeles': 'La'})
+
+# City standardization
+city_map = {'Ny': 'New York', 'Nyc': 'New York', 'La': 'Los Angeles'}
+df_clean['city'] = df_clean['city'].replace(city_map)
+
+# Status standardization
+status_map = {'active': 'Active', 'a': 'Active', 'inactive': 'Inactive'}
+df_clean['status'] = df_clean['status'].str.strip().str.lower().map(status_map).fillna('Unknown')
+
+# 4. Handle missing values
+# Age: median imputation
+df_clean['age'] = df_clean['age'].fillna(df_clean['age'].median())
+
+# Salary: median imputation
+df_clean['salary'] = df_clean['salary'].fillna(df_clean['salary'].median())
+
+# 5. Handle outliers in score
+Q1 = df_clean['score'].quantile(0.25)
+Q3 = df_clean['score'].quantile(0.75)
+IQR = Q3 - Q1
+lower_bound = Q1 - 1.5 * IQR
+upper_bound = Q3 + 1.5 * IQR
+
+# Cap outliers
+df_clean['score'] = df_clean['score'].clip(lower=lower_bound, upper=upper_bound)
+
+# 6. Remove rows with critical missing data (join_date)
+df_clean = df_clean.dropna(subset=['join_date'])
+
+# Reset index
+df_clean = df_clean.reset_index(drop=True)
+
+print("\n=== CLEANED DATA ===")
+print(df_clean)
+print(f"\nShape: {df_clean.shape}")
+print(f"\nData types:\n{df_clean.dtypes}")
+```
+
+**Output:**
+```
+=== CLEANED DATA ===
+   id   name   age   salary        city   join_date  status  score
+0   1   John  25.0  50000.0    New York  2023-01-15   Active   85.0
+1   2   Jane  30.0  60000.0    New York  2023-02-20   Active   90.0
+2   3    Jim  35.0  67500.0    New York  2023-03-10   Active   95.0
+3   4  Alice  38.0  75000.0    New York         NaT  Inactive  93.5
+4   5    Bob  45.0  55000.0    Chicago  2023-05-01   Active   93.5
+5   6  Alice  40.0  65000.0          La  2023-06-15   Active   88.0
+6   7   John  28.0  70000.0  Los Angeles  2023-07-20   Active   92.0
+7   8    Eve  38.0  70000.0     Seattle  2023-09-01   Active   87.0
+8   9    Tom  32.0  80000.0     Seattle  2023-09-01  Inactive  91.0
+9  10   Sam  38.0  90000.0     Boston  2023-10-10   Active   89.0
+
+Shape: (10, 8)
+```
+
+## Common Mistakes
+
+### ❌ Don't Do These
+
+1. **Don't drop all rows with any missing value**
+   ```python
+   # WRONG: Loses too much data
+   df_clean = df.dropna()
+   
+   # RIGHT: Impute or drop strategically
+   df_clean = df.dropna(thresh=len(df.columns)*0.7)  # Keep rows with 70%+ data
+   ```
+
+2. **Don't fill missing values with 0 (unless appropriate)**
+   ```python
+   # WRONG: 0 can bias your model
+   df['age'] = df['age'].fillna(0)
+   
+   # RIGHT: Use mean/median/mode or NaN for algorithms that handle it
+   df['age'] = df['age'].fillna(df['age'].median())
+   ```
+
+3. **Don't remove all outliers**
+   ```python
+   # WRONG: Outliers might be important signal
+   df_clean = df[(np.abs(stats.zscore(df['value'])) < 1)]
+   
+   # RIGHT: Investigate outliers first, then decide
+   ```
+
+4. **Don't assume missing = not applicable**
+   ```python
+   # WRONG: Different missing reasons need different handling
+   df['income'] = df['income'].fillna(0)
+   
+   # RIGHT: Understand WHY values are missing
+   ```
+
+## Best Practices Checklist
+
+- [ ] Identify all missing values and their percentages
+- [ ] Understand WHY data is missing (MCAR, MAR, MNAR)
+- [ ] Choose imputation strategy based on data distribution
+- [ ] Remove true duplicates (check for legitimate duplicates first)
+- [ ] Convert all columns to appropriate data types
+- [ ] Standardize categorical values (lowercase, strip whitespace)
+- [ ] Detect and handle outliers (investigate before removing)
+- [ ] Document all cleaning decisions
+- [ ] Keep raw data separate from cleaned data
+- [ ] Create a reproducible cleaning pipeline
+
+## Edge Cases to Handle
+
+### Empty DataFrame
+```python
+if df.empty:
+    raise ValueError("DataFrame is empty")
+```
+
+### All Missing Column
+```python
+all_missing = df.columns[df.isnull().all()].tolist()
+if all_missing:
+    print(f"Dropping columns with all missing: {all_missing}")
+    df = df.drop(columns=all_missing)
+```
+
+### Mixed Types in Column
+```python
+# Column contains mixed types
+def safe_convert_to_numeric(series):
+    converted = pd.to_numeric(series, errors='coerce')
+    if converted.notna().sum() < len(series) * 0.5:
+        print(f"Warning: Column has too many non-numeric values")
+    return converted
+
+df['value'] = safe_convert_to_numeric(df['value'])
+```
+
+### Date Parsing Edge Cases
+```python
+# Handle various date formats
+def parse_dates(series):
+    formats = [
+        '%Y-%m-%d',
+        '%m/%d/%Y',
+        '%d-%m-%Y',
+        '%Y/%m/%d',
+        '%B %d, %Y',
+        None  # Let pandas infer
+    ]
+    
+    for fmt in formats:
+        try:
+            return pd.to_datetime(series, format=fmt, errors='raise')
+        except:
+            continue
+    
+    return pd.to_datetime(series, errors='coerce')
+
+df['date'] = parse_dates(df['date'])
+```
+
+## Pipeline Integration
+
+```python
+from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.pipeline import Pipeline
+
+class DataCleaner(BaseEstimator, TransformerMixin):
+    def __init__(self, numeric_strategy='median', categorical_strategy='mode'):
+        self.numeric_strategy = numeric_strategy
+        self.categorical_strategy = categorical_strategy
+        
+    def fit(self, X, y=None):
+        self.numeric_cols = X.select_dtypes(include=['number']).columns
+        self.categorical_cols = X.select_dtypes(include=['object', 'category']).columns
+        
+        self.numeric_medians = X[self.numeric_cols].median()
+        self.categorical_modes = X[self.categorical_cols].mode().iloc[0]
+        
+        return self
+    
+    def transform(self, X):
+        X = X.copy()
+        
+        # Convert to numeric (coerce errors)
+        for col in X.select_dtypes(include=['object']).columns:
+            try:
+                X[col] = pd.to_numeric(X[col])
+            except:
+                pass
+        
+        # Re-identify numeric columns after conversion
+        numeric_cols = X.select_dtypes(include=['number']).columns
+        
+        # Impute numeric
+        for col in numeric_cols:
+            X[col] = X[col].fillna(self.numeric_medians.get(col, X[col].median()))
+        
+        # Impute categorical
+        for col in X.select_dtypes(include=['object', 'category']).columns:
+            X[col] = X[col].fillna(self.categorical_modes.get(col, X[col].mode()[0]))
+        
+        return X
+
+# Usage in pipeline
+pipeline = Pipeline([
+    ('cleaner', DataCleaner()),
+    ('scaler', StandardScaler()),
+    ('model', RandomForestRegressor())
+])
+```

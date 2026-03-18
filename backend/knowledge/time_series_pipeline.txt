@@ -1,20 +1,737 @@
-Time series datasets contain time based ordering.
+# Time Series Pipeline
 
-Important steps:
+## Overview
 
-Sorting by date
-Handling missing timestamps
-Creating lag features
-Rolling statistics
+Time series data has temporal ordering where time is the primary dimension. This guide covers forecasting, trend analysis, seasonality detection, and building predictive models for sequential data.
 
-Models:
+## Pipeline Steps
 
-ARIMA
-LSTM
-Prophet
+```
+1. Data Loading and Time Parsing
+2. Exploratory Time Series Analysis
+3. Handling Missing Timestamps
+4. Time-Based Feature Engineering
+5. Stationarity Analysis
+6. Train/Test Split (Time-Based)
+7. Model Training
+8. Evaluation and Forecasting
+```
 
-Evaluation:
+## Data Loading and Time Parsing
 
-MAE
-RMSE
-MAPE
+```python
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Load data with date parsing
+df = pd.read_csv('time_series_data.csv', parse_dates=['date'], index_col='date')
+
+# Or parse after loading
+df = pd.read_csv('time_series_data.csv')
+df['date'] = pd.to_datetime(df['date'])
+df = df.set_index('date')
+
+print(f"Date range: {df.index.min()} to {df.index.max()}")
+print(f"Frequency: {pd.infer_freq(df.index)}")
+print(f"Shape: {df.shape}")
+
+# Verify temporal order
+df = df.sort_index()
+print(f"\nFirst date: {df.index[0]}")
+print(f"Last date: {df.index[-1]}")
+```
+
+## Time Series Exploration
+
+### Basic Visualization
+
+```python
+# Plot time series
+fig, axes = plt.subplots(2, 1, figsize=(14, 8))
+
+# Line plot
+axes[0].plot(df.index, df['value'])
+axes[0].set_xlabel('Date')
+axes[0].set_ylabel('Value')
+axes[0].set_title('Time Series Plot')
+axes[0].grid(True, alpha=0.3)
+
+# Rolling statistics
+rolling_mean = df['value'].rolling(window=12).mean()
+rolling_std = df['value'].rolling(window=12).std()
+
+axes[1].plot(df.index, df['value'], label='Original', alpha=0.7)
+axes[1].plot(df.index, rolling_mean, label='Rolling Mean', linewidth=2)
+axes[1].plot(df.index, rolling_std, label='Rolling Std', linewidth=2)
+axes[1].legend()
+axes[1].set_title('Rolling Statistics')
+axes[1].grid(True, alpha=0.3)
+
+plt.tight_layout()
+plt.show()
+```
+
+### Decomposition
+
+```python
+from statsmodels.tsa.seasonal import seasonal_decompose
+
+# Decompose time series
+decomposition = seasonal_decompose(df['value'], model='additive', period=12)
+
+fig, axes = plt.subplots(4, 1, figsize=(14, 10))
+
+decomposition.observed.plot(ax=axes[0], title='Observed')
+decomposition.trend.plot(ax=axes[1], title='Trend')
+decomposition.seasonal.plot(ax=axes[2], title='Seasonal')
+decomposition.resid.plot(ax=axes[3], title='Residual')
+
+for ax in axes:
+    ax.grid(True, alpha=0.3)
+
+plt.tight_layout()
+plt.show()
+
+# Multiplicative decomposition (for data with increasing variance)
+decomposition_mult = seasonal_decompose(df['value'], model='multiplicative', period=12)
+```
+
+### Trend Analysis
+
+```python
+# Moving average trend
+df['trend_ma'] = df['value'].rolling(window=12).mean()
+
+# Exponential moving average
+df['trend_ema'] = df['value'].ewm(span=12).mean()
+
+# Linear trend
+from scipy import stats
+
+x = np.arange(len(df))
+slope, intercept, r_value, p_value, std_err = stats.linregress(x, df['value'].fillna(method='ffill'))
+
+df['trend_linear'] = intercept + slope * x
+
+print(f"Linear trend slope: {slope:.4f} per period")
+print(f"R-squared: {r_value**2:.4f}")
+```
+
+### Seasonality Detection
+
+```python
+# Seasonal pattern by period
+def plot_seasonal_pattern(data, period=12):
+    seasonal = data.groupby(data.index % period).mean()
+    
+    plt.figure(figsize=(10, 5))
+    plt.bar(range(len(seasonal)), seasonal.values)
+    plt.xlabel('Period')
+    plt.ylabel('Average Value')
+    plt.title(f'Seasonal Pattern (Period={period})')
+    plt.grid(True, alpha=0.3)
+    plt.show()
+
+plot_seasonal_pattern(df['value'], period=12)
+
+# Autocorrelation
+from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
+
+fig, axes = plt.subplots(1, 2, figsize=(14, 4))
+
+plot_acf(df['value'].dropna(), ax=axes[0], lags=40)
+axes[0].set_title('Autocorrelation Function (ACF)')
+
+plot_pacf(df['value'].dropna(), ax=axes[1], lags=40)
+axes[1].set_title('Partial Autocorrelation Function (PACF)')
+
+plt.tight_layout()
+plt.show()
+```
+
+## Handling Missing Timestamps
+
+### Detect Missing Timestamps
+
+```python
+# Check for gaps in time series
+date_range = pd.date_range(start=df.index.min(), end=df.index.max(), freq='D')
+missing_dates = date_range.difference(df.index)
+
+print(f"Expected observations: {len(date_range)}")
+print(f"Actual observations: {len(df)}")
+print(f"Missing dates: {len(missing_dates)}")
+
+if len(missing_dates) > 0:
+    print(f"Missing date range: {missing_dates.min()} to {missing_dates.max()}")
+```
+
+### Fill Missing Timestamps
+
+```python
+# Create complete date range and reindex
+date_range = pd.date_range(start=df.index.min(), end=df.index.max(), freq='D')
+df = df.reindex(date_range)
+
+# Method 1: Forward fill (use previous value)
+df['value_ffill'] = df['value'].fillna(method='ffill')
+
+# Method 2: Backward fill (use next value)
+df['value_bfill'] = df['value'].fillna(method='bfill')
+
+# Method 3: Linear interpolation
+df['value_interp'] = df['value'].interpolate(method='linear')
+
+# Method 4: Time-based interpolation
+df['value_time_interp'] = df['value'].interpolate(method='time')
+
+# Method 5: Rolling mean imputation
+df['value_rolling'] = df['value'].fillna(df['value'].rolling(7, min_periods=1).mean())
+
+# Choose best method based on data characteristics
+print(df[['value', 'value_ffill', 'value_interp']].head(20))
+```
+
+### Handle Missing with Forward Fill + Known Values
+
+```python
+# For production systems with regular updates
+def fill_missing_ts(data, max_fill=7):
+    """Forward fill with limit, then backward fill remaining."""
+    data = data.copy()
+    data = data.fillna(method='ffill', limit=max_fill)
+    data = data.fillna(method='bfill')  # Fill any remaining
+    return data
+
+df['value_clean'] = fill_missing_ts(df['value'])
+```
+
+## Time-Based Feature Engineering
+
+### DateTime Features
+
+```python
+# Extract date components
+df['year'] = df.index.year
+df['quarter'] = df.index.quarter
+df['month'] = df.index.month
+df['week'] = df.index.isocalendar().week
+df['day'] = df.index.day
+df['dayofweek'] = df.index.dayofweek
+df['dayofyear'] = df.index.dayofyear
+df['is_weekend'] = df.index.dayofweek.isin([5, 6]).astype(int)
+
+# Time since reference point
+df['days_since_start'] = (df.index - df.index.min()).days
+```
+
+### Cyclical Encoding
+
+```python
+# Encode cyclical patterns with sin/cos
+def encode_cyclical(df, col, period):
+    df[f'{col}_sin'] = np.sin(2 * np.pi * df[col] / period)
+    df[f'{col}_cos'] = np.cos(2 * np.pi * df[col] / period)
+    return df
+
+df = encode_cyclical(df, 'month', 12)
+df = encode_cyclical(df, 'dayofweek', 7)
+df = encode_cyclical(df, 'hour', 24)
+```
+
+### Lag Features
+
+```python
+# Create lag features
+for lag in [1, 2, 3, 6, 12]:
+    df[f'lag_{lag}'] = df['value'].shift(lag)
+
+# Lag differences
+df['diff_1'] = df['value'].diff(1)
+df['diff_7'] = df['value'].diff(7)  # Weekly difference
+
+# Percentage change
+df['pct_change_1'] = df['value'].pct_change(1)
+df['pct_change_7'] = df['value'].pct_change(7)
+```
+
+### Rolling Window Features
+
+```python
+# Rolling statistics
+for window in [7, 14, 30]:
+    df[f'rolling_mean_{window}'] = df['value'].rolling(window=window).mean()
+    df[f'rolling_std_{window}'] = df['value'].rolling(window=window).std()
+    df[f'rolling_min_{window}'] = df['value'].rolling(window=window).min()
+    df[f'rolling_max_{window}'] = df['value'].rolling(window=window).max()
+
+# Expanding statistics (cumulative)
+df['expanding_mean'] = df['value'].expanding().mean()
+df['expanding_std'] = df['value'].expanding().std()
+
+# Rolling quantiles
+df['rolling_median_7'] = df['value'].rolling(window=7).median()
+df['rolling_quantile_25_7'] = df['value'].rolling(window=7).quantile(0.25)
+df['rolling_quantile_75_7'] = df['value'].rolling(window=7).quantile(0.75)
+```
+
+### Time Since Events
+
+```python
+# Time since last event (for binary events)
+df['days_since_event'] = df['has_event'].cumsum()
+df['days_since_event'] = (df['has_event'] == 0).cumsum()
+
+# Exponential weighted moving average
+df['ewma_7'] = df['value'].ewm(span=7).mean()
+df['ewma_30'] = df['value'].ewm(span=30).mean()
+```
+
+## Stationarity Analysis
+
+### Augmented Dickey-Fuller Test
+
+```python
+from statsmodels.tsa.stattools import adfuller
+
+def adf_test(series, name=''):
+    """Augmented Dickey-Fuller test for stationarity."""
+    result = adfuller(series.dropna(), autolag='AIC')
+    
+    print(f'ADF Test for {name}:')
+    print(f'  ADF Statistic: {result[0]:.4f}')
+    print(f'  p-value: {result[1]:.4f}')
+    print(f'  Critical Values:')
+    for key, value in result[4].items():
+        print(f'    {key}: {value:.4f}')
+    
+    if result[1] <= 0.05:
+        print('  Result: Stationary (reject null hypothesis)')
+    else:
+        print('  Result: Non-stationary (fail to reject null hypothesis)')
+    
+    return result[1]
+
+p_value = adf_test(df['value'], 'value')
+```
+
+### KPSS Test
+
+```python
+from statsmodels.tsa.stattools import kpss
+
+def kpss_test(series, name=''):
+    """KPSS test for stationarity."""
+    result = kpss(series.dropna(), regression='c', nlags='auto')
+    
+    print(f'KPSS Test for {name}:')
+    print(f'  KPSS Statistic: {result[0]:.4f}')
+    print(f'  p-value: {result[1]:.4f}')
+    print(f'  Critical Values:')
+    for key, value in result[3].items():
+        print(f'    {key}: {value:.4f}')
+    
+    if result[1] <= 0.05:
+        print('  Result: Non-stationary (reject null hypothesis)')
+    else:
+        print('  Result: Stationary (fail to reject null hypothesis)')
+
+kpss_test(df['value'], 'value')
+```
+
+### Making Series Stationary
+
+```python
+# Difference to make stationary
+df['value_diff'] = df['value'].diff()
+
+# Log transform to stabilize variance
+df['value_log'] = np.log1p(df['value'])
+
+# Log difference (often used for financial data)
+df['value_log_diff'] = np.log1p(df['value']).diff()
+
+# Seasonal difference
+df['value_seasonal_diff'] = df['value'].diff(12)  # For monthly data
+```
+
+## Train/Test Split (Time-Based)
+
+```python
+# Time-based split (IMPORTANT: no shuffling!)
+train_size = int(len(df) * 0.8)
+train = df.iloc[:train_size]
+test = df.iloc[train_size:]
+
+print(f"Training: {train.index.min()} to {train.index.max()}")
+print(f"Testing: {test.index.min()} to {test.index.max()}")
+print(f"Train size: {len(train)}, Test size: {len(test)}")
+
+# Visualize split
+plt.figure(figsize=(14, 5))
+plt.plot(train.index, train['value'], label='Train', color='blue')
+plt.plot(test.index, test['value'], label='Test', color='orange')
+plt.axvline(x=train.index[-1], color='red', linestyle='--', label='Split Point')
+plt.legend()
+plt.title('Time Series Train/Test Split')
+plt.show()
+```
+
+## Model Training
+
+### Simple Baseline Models
+
+#### Moving Average
+
+```python
+# Forecast using moving average
+window = 7
+forecast = test['value'].copy()
+
+# Use last 'window' values to forecast
+for i in range(len(test)):
+    forecast.iloc[i] = train['value'].iloc[-window:].mean()
+    if i < len(test) - 1:
+        train = pd.concat([train, test.iloc[[i]]])
+
+# Or use expanding mean
+forecast_expanding = test['value'].copy()
+forecast_expanding[:] = train['value'].expanding().mean().iloc[-1]
+```
+
+#### Naive Forecast (Last Value)
+
+```python
+# Forecast using last observed value
+forecast_naive = test['value'].copy()
+forecast_naive.iloc[:] = train['value'].iloc[-1]
+
+print(f"Naive RMSE: {np.sqrt(mean_squared_error(test['value'], forecast_naive)):.4f}")
+```
+
+### Exponential Smoothing
+
+```python
+from statsmodels.tsa.holtwinters import ExponentialSmoothing, SimpleExpSmoothing
+
+# Simple Exponential Smoothing
+ses = SimpleExpSmoothing(train['value'].dropna()).fit(smoothing_level=0.2)
+forecast_ses = ses.forecast(len(test))
+
+# Holt's Exponential Smoothing (trend)
+holt = ExponentialSmoothing(
+    train['value'].dropna(),
+    trend='add',
+    seasonal=None
+).fit()
+forecast_holt = holt.forecast(len(test))
+
+# Holt-Winters (trend + seasonality)
+hw = ExponentialSmoothing(
+    train['value'].dropna(),
+    trend='add',
+    seasonal='add',
+    seasonal_periods=12
+).fit()
+forecast_hw = hw.forecast(len(test))
+```
+
+### ARIMA
+
+```python
+from statsmodels.tsa.arima.model import ARIMA
+from pmdarima import auto_arima
+
+# Auto ARIMA (automatically find best parameters)
+auto_model = auto_arima(
+    train['value'].dropna(),
+    start_p=0, start_q=0,
+    max_p=5, max_q=5,
+    m=12,  # Seasonal period
+    d=None,  # Let model determine d
+    seasonal=True,
+    trace=True,
+    error_action='ignore',
+    suppress_warnings=True,
+    stepwise=True
+)
+
+print(auto_model.summary())
+
+# Forecast
+forecast_arima = auto_model.predict(n_periods=len(test))
+```
+
+### Prophet (Facebook)
+
+```python
+# pip install prophet
+
+from prophet import Prophet
+
+# Prepare data for Prophet
+prophet_df = train.reset_index()
+prophet_df.columns = ['ds', 'y']
+
+# Initialize and fit model
+model = Prophet(
+    yearly_seasonality=True,
+    weekly_seasonality=True,
+    daily_seasonality=False,
+    seasonality_mode='additive'
+)
+model.fit(prophet_df)
+
+# Create future dataframe
+future = model.make_future_dataframe(periods=len(test))
+forecast_prophet = model.predict(future)
+
+# Extract predictions
+forecast_prophet_df = forecast_prophet.iloc[-len(test):]
+```
+
+### XGBoost for Time Series
+
+```python
+from xgboost import XGBRegressor
+from sklearn.metrics import mean_squared_error
+
+# Prepare features (lags, rolling stats, etc.)
+df_features = df.copy()
+df_features = df_features.dropna()
+
+# Split after feature engineering
+train_feat = df_features.iloc[:train_size]
+test_feat = df_features.iloc[train_size:]
+
+feature_cols = [col for col in df_features.columns if col != 'value']
+X_train = train_feat[feature_cols]
+y_train = train_feat['value']
+X_test = test_feat[feature_cols]
+y_test = test_feat['value']
+
+# Train XGBoost
+xgb_model = XGBRegressor(
+    n_estimators=100,
+    max_depth=6,
+    learning_rate=0.1,
+    random_state=42
+)
+xgb_model.fit(X_train, y_train)
+
+# Forecast
+forecast_xgb = xgb_model.predict(X_test)
+
+print(f"XGBoost RMSE: {np.sqrt(mean_squared_error(y_test, forecast_xgb)):.4f}")
+```
+
+### LSTM Neural Network
+
+```python
+# pip install tensorflow
+
+import tensorflow as tf
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import LSTM, Dense, Dropout
+from sklearn.preprocessing import MinMaxScaler
+
+# Scale data
+scaler = MinMaxScaler()
+scaled_train = scaler.fit_transform(train['value'].values.reshape(-1, 1))
+scaled_test = scaler.transform(test['value'].values.reshape(-1, 1))
+
+# Create sequences
+def create_sequences(data, seq_length):
+    X, y = [], []
+    for i in range(len(data) - seq_length):
+        X.append(data[i:(i + seq_length)])
+        y.append(data[i + seq_length])
+    return np.array(X), np.array(y)
+
+seq_length = 12
+X_train_seq, y_train_seq = create_sequences(scaled_train, seq_length)
+X_test_seq, y_test_seq = create_sequences(scaled_test, seq_length)
+
+# Build LSTM model
+model = Sequential([
+    LSTM(50, activation='relu', input_shape=(seq_length, 1)),
+    Dropout(0.2),
+    Dense(1)
+])
+
+model.compile(optimizer='adam', loss='mse')
+
+# Train
+model.fit(X_train_seq, y_train_seq, epochs=50, batch_size=32, validation_split=0.1, verbose=0)
+
+# Forecast
+forecast_lstm = model.predict(X_test_seq)
+forecast_lstm = scaler.inverse_transform(forecast_lstm)
+
+print(f"LSTM RMSE: {np.sqrt(mean_squared_error(y_test.iloc[seq_length:], forecast_lstm)):.4f}")
+```
+
+## Evaluation Metrics
+
+```python
+from sklearn.metrics import mean_squared_error, mean_absolute_error
+import numpy as np
+
+def evaluate_forecast(y_true, y_pred, model_name='Model'):
+    """Evaluate forecast performance."""
+    rmse = np.sqrt(mean_squared_error(y_true, y_pred))
+    mae = mean_absolute_error(y_true, y_pred)
+    mape = np.mean(np.abs((y_true - y_pred) / y_true)) * 100
+    
+    print(f"=== {model_name} ===")
+    print(f"  RMSE: {rmse:.4f}")
+    print(f"  MAE: {mae:.4f}")
+    print(f"  MAPE: {mape:.2f}%")
+    
+    return {'rmse': rmse, 'mae': mae, 'mape': mape}
+
+# Compare all models
+results = {}
+for name, forecast in [('Naive', forecast_naive), ('SES', forecast_ses), 
+                        ('Holt', forecast_holt), ('HW', forecast_hw),
+                        ('ARIMA', forecast_arima), ('XGBoost', forecast_xgb)]:
+    results[name] = evaluate_forecast(test['value'], forecast, name)
+```
+
+### Visualization
+
+```python
+plt.figure(figsize=(14, 6))
+
+plt.plot(train.index, train['value'], label='Train', color='blue')
+plt.plot(test.index, test['value'], label='Actual', color='green')
+plt.plot(test.index, forecast_arima, label='ARIMA Forecast', color='red', linestyle='--')
+plt.axvline(x=train.index[-1], color='gray', linestyle='--', alpha=0.5)
+
+plt.xlabel('Date')
+plt.ylabel('Value')
+plt.title('Time Series Forecasting')
+plt.legend()
+plt.grid(True, alpha=0.3)
+plt.tight_layout()
+plt.show()
+```
+
+## Complete Pipeline Example
+
+```python
+import pandas as pd
+import numpy as np
+from statsmodels.tsa.holtwinters import ExponentialSmoothing
+from statsmodels.tsa.arima.model import ARIMA
+from sklearn.metrics import mean_squared_error
+import matplotlib.pyplot as plt
+
+# 1. Load and parse dates
+df = pd.read_csv('time_series.csv', parse_dates=['date'], index_col='date')
+df = df.sort_index()
+
+# 2. Handle missing values
+df = df.asfreq('D')  # Ensure daily frequency
+df['value'] = df['value'].interpolate(method='time')
+
+# 3. Feature engineering
+df['month'] = df.index.month
+df['dayofweek'] = df.index.dayofweek
+df['lag_1'] = df['value'].shift(1)
+df['rolling_mean_7'] = df['value'].rolling(7).mean()
+
+# 4. Train/test split
+train_size = int(len(df) * 0.8)
+train, test = df.iloc[:train_size], df.iloc[train_size:]
+
+# 5. Train multiple models
+models = {}
+
+# Holt-Winters
+hw_model = ExponentialSmoothing(
+    train['value'].dropna(),
+    trend='add',
+    seasonal='add',
+    seasonal_periods=7
+).fit()
+models['Holt-Winters'] = hw_model.forecast(len(test))
+
+# ARIMA
+arima_model = ARIMA(train['value'].dropna(), order=(5, 1, 2)).fit()
+models['ARIMA'] = arima_model.forecast(len(test))
+
+# 6. Evaluate and select best
+results = {}
+for name, forecast in models.items():
+    rmse = np.sqrt(mean_squared_error(test['value'], forecast))
+    results[name] = rmse
+    print(f"{name} RMSE: {rmse:.4f}")
+
+best_model = min(results, key=results.get)
+print(f"\nBest model: {best_model}")
+
+# 7. Forecast future
+future_periods = 30
+final_model = models[best_model.replace(' ', '-').lower()]
+future_forecast = final_model.forecast(future_periods)
+```
+
+## Common Pitfalls
+
+### Not Using Time-Based Split
+
+```python
+# BAD: Random split breaks temporal order
+from sklearn.model_selection import train_test_split
+X_train, X_test = train_test_split(df, test_size=0.2)  # WRONG!
+
+# GOOD: Time-based split
+train = df.iloc[:train_size]
+test = df.iloc[train_size:]
+```
+
+### Data Leakage
+
+```python
+# BAD: Using future information in features
+df['future_value'] = df['value'].shift(-1)  # LEAKAGE!
+
+# GOOD: Only use past information
+df['lag_1'] = df['value'].shift(1)  # OK
+```
+
+### Ignoring Stationarity
+
+```python
+# BAD: Using non-stationary data directly
+# Results in spurious correlations
+
+# GOOD: Make series stationary first
+df['value_diff'] = df['value'].diff()  # First difference
+```
+
+### Wrong Evaluation
+
+```python
+# BAD: Using R² for time series
+from sklearn.metrics import r2_score
+r2_score(y_test, y_pred)  # Can be negative for time series!
+
+# GOOD: Use RMSE, MAE, MAPE
+rmse = np.sqrt(mean_squared_error(y_test, y_pred))
+```
+
+## Best Practices
+
+- [ ] Always sort by time before analysis
+- [ ] Infer and set proper frequency
+- [ ] Handle missing timestamps explicitly
+- [ ] Visualize trends, seasonality, and residuals
+- [ ] Test for stationarity (ADF, KPSS)
+- [ ] Use time-based split (no shuffling)
+- [ ] Engineer lag and rolling features carefully
+- [ ] Consider multiple forecasting methods
+- [ ] Evaluate with appropriate metrics
+- [ ] Monitor for concept drift in production

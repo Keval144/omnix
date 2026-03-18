@@ -1,21 +1,696 @@
-Regression predicts continuous numerical outputs.
+# Regression Pipeline
 
-Pipeline:
+## Overview
 
-1 Data cleaning
-2 Feature scaling
-3 Train test split
-4 Model training
+Regression predicts continuous numerical values. Examples include house price prediction, sales forecasting, temperature estimation, and demand prediction.
 
-Models:
+## Pipeline Steps
 
-Linear Regression
-Ridge Regression
-Lasso Regression
-Random Forest Regressor
+```
+1. Data Loading
+2. Exploratory Data Analysis
+3. Data Cleaning
+4. Feature Engineering
+5. Feature Scaling
+6. Train/Test Split
+7. Model Training
+8. Model Evaluation
+9. Hyperparameter Tuning
+```
 
-Metrics:
+## Data Loading and Exploration
 
-MSE
-RMSE
-R2 Score
+```python
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Load dataset
+df = pd.read_csv('regression_data.csv')
+
+# Basic exploration
+print(f"Shape: {df.shape}")
+print(f"\nData types:\n{df.dtypes}")
+
+# Target variable analysis
+target_col = 'target'
+print(f"\n=== Target Variable: {target_col} ===")
+print(df[target_col].describe())
+
+# Check for missing values
+missing = df.isnull().sum()
+print(f"\nMissing values:\n{missing[missing > 0]}")
+
+# Check for duplicates
+print(f"\nDuplicate rows: {df.duplicated().sum()}")
+```
+
+## Exploratory Data Analysis for Regression
+
+### Target Distribution Analysis
+
+```python
+# Visualize target distribution
+fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+
+# Histogram
+axes[0].hist(df[target_col], bins=50, edgecolor='black', alpha=0.7)
+axes[0].set_xlabel(target_col)
+axes[0].set_ylabel('Frequency')
+axes[0].set_title(f'Distribution of {target_col}')
+axes[0].axvline(df[target_col].mean(), color='red', linestyle='--', label=f'Mean: {df[target_col].mean():.2f}')
+axes[0].axvline(df[target_col].median(), color='green', linestyle='--', label=f'Median: {df[target_col].median():.2f}')
+axes[0].legend()
+
+# Box plot
+axes[1].boxplot(df[target_col].dropna())
+axes[1].set_ylabel(target_col)
+axes[1].set_title('Box Plot')
+
+plt.tight_layout()
+plt.show()
+
+# Check skewness
+from scipy.stats import skew, kurtosis
+
+target_skew = skew(df[target_col].dropna())
+target_kurt = kurtosis(df[target_col].dropna())
+
+print(f"Skewness: {target_skew:.4f}")
+print(f"Kurtosis: {target_kurt:.4f}")
+
+if abs(target_skew) > 1:
+    print("⚠️ Target is highly skewed. Consider log transformation.")
+```
+
+### Feature Correlation Analysis
+
+```python
+# Correlation matrix
+numeric_df = df.select_dtypes(include=[np.number])
+corr_matrix = numeric_df.corr()
+
+# Correlation with target
+target_corr = corr_matrix[target_col].drop(target_col).sort_values(ascending=False)
+print(f"\nCorrelation with {target_col}:")
+print(target_corr.head(10))
+
+# Visualize
+plt.figure(figsize=(12, 10))
+sns.heatmap(corr_matrix, annot=True, cmap='coolwarm', center=0, fmt='.2f')
+plt.title('Correlation Matrix')
+plt.tight_layout()
+plt.show()
+
+# Find highly correlated features
+high_corr_pairs = []
+for i in range(len(corr_matrix.columns)):
+    for j in range(i+1, len(corr_matrix.columns)):
+        if abs(corr_matrix.iloc[i, j]) > 0.8:
+            high_corr_pairs.append({
+                'Feature 1': corr_matrix.columns[i],
+                'Feature 2': corr_matrix.columns[j],
+                'Correlation': corr_matrix.iloc[i, j]
+            })
+
+if high_corr_pairs:
+    print("\n⚠️ Highly correlated features (|r| > 0.8):")
+    for pair in high_corr_pairs:
+        print(f"  {pair['Feature 1']} - {pair['Feature 2']}: {pair['Correlation']:.3f}")
+```
+
+### Scatter Plots with Target
+
+```python
+# Top correlated features vs target
+top_features = target_corr.abs().head(6).index.tolist()
+
+fig, axes = plt.subplots(2, 3, figsize=(15, 10))
+axes = axes.flatten()
+
+for i, feature in enumerate(top_features):
+    axes[i].scatter(df[feature], df[target_col], alpha=0.5, s=10)
+    axes[i].set_xlabel(feature)
+    axes[i].set_ylabel(target_col)
+    
+    # Add correlation coefficient
+    corr = df[feature].corr(df[target_col])
+    axes[i].set_title(f'{feature} (r={corr:.3f})')
+    
+    # Add regression line
+    z = np.polyfit(df[feature].dropna(), df.loc[df[feature].notna(), target_col], 1)
+    p = np.poly1d(z)
+    axes[i].plot(df[feature].dropna().sort_values(), 
+                 p(df[feature].dropna().sort_values()), 
+                 "r--", alpha=0.8)
+
+plt.tight_layout()
+plt.show()
+```
+
+## Data Cleaning for Regression
+
+### Handling Missing Values
+
+```python
+# Check missing values
+missing = df.isnull().sum()
+missing_pct = (missing / len(df)) * 100
+
+print("Missing values by column:")
+missing_summary = pd.DataFrame({
+    'Missing Count': missing,
+    'Missing %': missing_pct
+}).sort_values('Missing %', ascending=False)
+
+print(missing_summary[missing_summary['Missing Count'] > 0])
+
+# Strategy: Use median for numeric (robust to outliers)
+for col in df.select_dtypes(include=[np.number]).columns:
+    if df[col].isnull().sum() > 0:
+        df[col] = df[col].fillna(df[col].median())
+        print(f"Filled {col} with median: {df[col].median():.2f}")
+
+# For categorical
+for col in df.select_dtypes(include=['object']).columns:
+    if df[col].isnull().sum() > 0:
+        df[col] = df[col].fillna(df[col].mode()[0])
+        print(f"Filled {col} with mode: {df[col].mode()[0]}")
+```
+
+### Outlier Detection and Handling
+
+```python
+def detect_outliers_iqr(data, column, multiplier=1.5):
+    """Detect outliers using IQR method."""
+    Q1 = data[column].quantile(0.25)
+    Q3 = data[column].quantile(0.75)
+    IQR = Q3 - Q1
+    
+    lower_bound = Q1 - multiplier * IQR
+    upper_bound = Q3 + multiplier * IQR
+    
+    outliers = data[(data[column] < lower_bound) | (data[column] > upper_bound)]
+    
+    return outliers, lower_bound, upper_bound
+
+# Detect outliers in numeric columns
+outlier_summary = {}
+for col in df.select_dtypes(include=[np.number]).columns:
+    outliers, lower, upper = detect_outliers_iqr(df, col)
+    if len(outliers) > 0:
+        outlier_summary[col] = {
+            'count': len(outliers),
+            'pct': len(outliers) / len(df) * 100,
+            'lower': lower,
+            'upper': upper
+        }
+
+print("Outlier Summary:")
+for col, info in outlier_summary.items():
+    print(f"  {col}: {info['count']} outliers ({info['pct']:.1f}%)")
+
+# Handle outliers - Cap them (Winsorization)
+for col, info in outlier_summary.items():
+    df[col] = df[col].clip(lower=info['lower'], upper=info['upper'])
+```
+
+### Target Transformation (for Skewed Data)
+
+```python
+# Check if log transformation helps
+from scipy.stats import skew
+
+if abs(skew(df[target_col])) > 1:
+    print(f"Target is skewed (skewness={skew(df[target_col]):.2f})")
+    print("Consider log transformation")
+    
+    # Log transform
+    df[f'{target_col}_log'] = np.log1p(df[target_col])
+    
+    # Check new skewness
+    print(f"Log-transformed skewness: {skew(df[f'{target_col}_log']):.2f}")
+    
+    # Inverse transform for predictions
+    # predictions = np.expm1(df['target_log_pred'])
+```
+
+## Feature Engineering for Regression
+
+### Creating New Features
+
+```python
+# Ratio features
+df['price_per_sqft'] = df['price'] / (df['sqft'] + 1)
+df['rooms_per_bath'] = df['bedrooms'] / (df['bathrooms'] + 1)
+
+# Interaction features
+df['area_x_rooms'] = df['sqft'] * df['total_rooms']
+
+# Polynomial features
+df['age_squared'] = df['age'] ** 2
+df['income_squared'] = df['income'] ** 2
+
+# Log transforms (for skewed features)
+for col in ['income', 'sqft', 'population']:
+    if df[col].skew() > 0.5:
+        df[f'{col}_log'] = np.log1p(df[col])
+
+# Binning continuous variables
+df['income_group'] = pd.qcut(df['income'], q=4, labels=['low', 'medium', 'high', 'very_high'])
+df['age_group'] = pd.cut(df['age'], bins=[0, 25, 35, 50, 65, 100], 
+                         labels=['young', 'adult', 'middle', 'senior', 'elderly'])
+```
+
+### Categorical Encoding for Regression
+
+```python
+# Label Encoding (for ordinal categories)
+from sklearn.preprocessing import LabelEncoder
+
+le = LabelEncoder()
+df['category_encoded'] = le.fit_transform(df['category'])
+
+# One-Hot Encoding (for nominal categories)
+df = pd.get_dummies(df, columns=['neighborhood', 'building_type'], prefix=['hood', 'type'])
+
+# Target Encoding (careful with leakage!)
+from sklearn.model_selection import KFold
+
+def target_encode(train_df, col, target, n_splits=5):
+    """Target encoding with K-fold to prevent leakage."""
+    train_df = train_df.copy()
+    train_df[f'{col}_target_enc'] = 0.0
+    
+    kf = KFold(n_splits=n_splits, shuffle=True, random_state=42)
+    
+    for train_idx, val_idx in kf.split(train_df):
+        means = train_df.iloc[train_idx].groupby(col)[target].mean()
+        train_df.loc[train_df.index[val_idx], f'{col}_target_enc'] = \
+            train_df.iloc[val_idx][col].map(means)
+    
+    # Fill NaN with global mean
+    train_df[f'{col}_target_enc'] = train_df[f'{col}_target_enc'].fillna(train_df[target].mean())
+    
+    return train_df[f'{col}_target_enc']
+
+df['neighborhood_encoded'] = target_encode(df, 'neighborhood', target_col)
+```
+
+## Feature Scaling
+
+```python
+from sklearn.preprocessing import StandardScaler, MinMaxScaler, RobustScaler
+
+# StandardScaler (mean=0, std=1) - good for most cases
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X)
+
+# MinMaxScaler (0-1 range) - good for bounded data
+scaler = MinMaxScaler()
+X_scaled = scaler.fit_transform(X)
+
+# RobustScaler (median=0, IQR=1) - good for outliers
+scaler = RobustScaler()
+X_scaled = scaler.fit_transform(X)
+
+# ⚠️ Important: Scale after train/test split
+# Only fit on training data, transform both
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)  # Use same scaler, don't fit again
+```
+
+## Train/Test Split for Regression
+
+```python
+from sklearn.model_selection import train_test_split
+
+# Basic split
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42
+)
+
+# For time series (don't shuffle!)
+# X_train = X.iloc[:train_size]
+# X_test = X.iloc[train_size:]
+
+print(f"Training set: {len(X_train)} samples")
+print(f"Test set: {len(X_test)} samples")
+
+# Verify distributions match
+print(f"\nTrain target mean: {y_train.mean():.4f}")
+print(f"Test target mean: {y_test.mean():.4f}")
+```
+
+## Model Training
+
+### Linear Regression
+
+```python
+from sklearn.linear_model import LinearRegression, Ridge, Lasso, ElasticNet
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+import numpy as np
+
+# Simple Linear Regression
+lr = LinearRegression()
+lr.fit(X_train, y_train)
+y_pred_lr = lr.predict(X_test)
+
+print("Linear Regression:")
+print(f"  RMSE: {np.sqrt(mean_squared_error(y_test, y_pred_lr)):.4f}")
+print(f"  MAE: {mean_absolute_error(y_test, y_pred_lr):.4f}")
+print(f"  R²: {r2_score(y_test, y_pred_lr):.4f}")
+
+# Interpret coefficients
+for feature, coef in zip(feature_names, lr.coef_):
+    print(f"  {feature}: {coef:.4f}")
+```
+
+### Ridge Regression (L2 Regularization)
+
+```python
+# Ridge - prevents overfitting by penalizing large coefficients
+ridge = Ridge(alpha=1.0, random_state=42)
+ridge.fit(X_train, y_train)
+y_pred_ridge = ridge.predict(X_test)
+
+print("Ridge Regression:")
+print(f"  RMSE: {np.sqrt(mean_squared_error(y_test, y_pred_ridge)):.4f}")
+
+# Alpha tuning
+alphas = [0.01, 0.1, 1, 10, 100]
+for alpha in alphas:
+    ridge = Ridge(alpha=alpha, random_state=42)
+    ridge.fit(X_train, y_train)
+    r2 = r2_score(y_test, ridge.predict(X_test))
+    print(f"  Alpha={alpha}: R²={r2:.4f}")
+```
+
+### Lasso Regression (L1 Regularization)
+
+```python
+# Lasso - can shrink coefficients to zero (feature selection)
+lasso = Lasso(alpha=0.1, random_state=42)
+lasso.fit(X_train, y_train)
+y_pred_lasso = lasso.predict(X_test)
+
+print("Lasso Regression:")
+print(f"  RMSE: {np.sqrt(mean_squared_error(y_test, y_pred_lasso)):.4f}")
+
+# Check which features were shrunk to zero
+zero_features = [f for f, c in zip(feature_names, lasso.coef_) if c == 0]
+print(f"  Features shrunk to zero: {len(zero_features)}")
+```
+
+### ElasticNet (L1 + L2)
+
+```python
+# ElasticNet - combination of Ridge and Lasso
+elastic = ElasticNet(alpha=0.1, l1_ratio=0.5, random_state=42)
+elastic.fit(X_train, y_train)
+y_pred_elastic = elastic.predict(X_test)
+
+print("ElasticNet:")
+print(f"  RMSE: {np.sqrt(mean_squared_error(y_test, y_pred_elastic)):.4f}")
+```
+
+### Random Forest Regressor
+
+```python
+from sklearn.ensemble import RandomForestRegressor
+
+rf = RandomForestRegressor(
+    n_estimators=100,
+    max_depth=10,
+    min_samples_split=5,
+    min_samples_leaf=2,
+    random_state=42,
+    n_jobs=-1
+)
+
+rf.fit(X_train, y_train)
+y_pred_rf = rf.predict(X_test)
+
+print("Random Forest:")
+print(f"  RMSE: {np.sqrt(mean_squared_error(y_test, y_pred_rf)):.4f}")
+print(f"  R²: {r2_score(y_test, y_pred_rf):.4f}")
+
+# Feature importance
+importances = pd.DataFrame({
+    'feature': feature_names,
+    'importance': rf.feature_importances_
+}).sort_values('importance', ascending=False)
+
+print("\nTop 10 Important Features:")
+print(importances.head(10))
+```
+
+### Gradient Boosting Regressor
+
+```python
+from sklearn.ensemble import GradientBoostingRegressor
+
+gb = GradientBoostingRegressor(
+    n_estimators=100,
+    max_depth=5,
+    learning_rate=0.1,
+    min_samples_split=5,
+    random_state=42
+)
+
+gb.fit(X_train, y_train)
+y_pred_gb = gb.predict(X_test)
+
+print("Gradient Boosting:")
+print(f"  RMSE: {np.sqrt(mean_squared_error(y_test, y_pred_gb)):.4f}")
+```
+
+### XGBoost
+
+```python
+from xgboost import XGBRegressor
+
+xgb = XGBRegressor(
+    n_estimators=100,
+    max_depth=6,
+    learning_rate=0.1,
+    subsample=0.8,
+    colsample_bytree=0.8,
+    random_state=42,
+    verbosity=0
+)
+
+xgb.fit(X_train, y_train)
+y_pred_xgb = xgb.predict(X_test)
+
+print("XGBoost:")
+print(f"  RMSE: {np.sqrt(mean_squared_error(y_test, y_pred_xgb)):.4f}")
+```
+
+## Model Evaluation
+
+### Regression Metrics
+
+```python
+from sklearn.metrics import (
+    mean_squared_error, mean_absolute_error, r2_score,
+    mean_absolute_percentage_error
+)
+import numpy as np
+
+def evaluate_regression(y_true, y_pred, model_name="Model"):
+    """Complete regression evaluation."""
+    rmse = np.sqrt(mean_squared_error(y_true, y_pred))
+    mse = mean_squared_error(y_true, y_pred)
+    mae = mean_absolute_error(y_true, y_pred)
+    r2 = r2_score(y_true, y_pred)
+    mape = mean_absolute_percentage_error(y_true, y_pred) * 100
+    
+    print(f"=== {model_name} ===")
+    print(f"  RMSE: {rmse:.4f}")
+    print(f"  MSE:  {mse:.4f}")
+    print(f"  MAE:  {mae:.4f}")
+    print(f"  R²:   {r2:.4f}")
+    print(f"  MAPE: {mape:.2f}%")
+    
+    return {'rmse': rmse, 'mse': mse, 'mae': mae, 'r2': r2, 'mape': mape}
+
+# Evaluate all models
+results = {}
+for name, y_pred in [('Linear', y_pred_lr), ('Ridge', y_pred_ridge), 
+                     ('RF', y_pred_rf), ('XGBoost', y_pred_xgb)]:
+    results[name] = evaluate_regression(y_test, y_pred, name)
+```
+
+### Residual Analysis
+
+```python
+import matplotlib.pyplot as plt
+import scipy.stats as stats
+
+fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+
+# 1. Predicted vs Actual
+axes[0, 0].scatter(y_test, y_pred, alpha=0.5)
+axes[0, 0].plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], 'r--', lw=2)
+axes[0, 0].set_xlabel('Actual')
+axes[0, 0].set_ylabel('Predicted')
+axes[0, 0].set_title('Predicted vs Actual')
+
+# 2. Residuals vs Predicted
+residuals = y_test - y_pred
+axes[0, 1].scatter(y_pred, residuals, alpha=0.5)
+axes[0, 1].axhline(y=0, color='r', linestyle='--')
+axes[0, 1].set_xlabel('Predicted')
+axes[0, 1].set_ylabel('Residuals')
+axes[0, 1].set_title('Residuals vs Predicted')
+
+# 3. Residual Histogram
+axes[1, 0].hist(residuals, bins=30, edgecolor='black', alpha=0.7)
+axes[1, 0].set_xlabel('Residual')
+axes[1, 0].set_ylabel('Frequency')
+axes[1, 0].set_title('Residual Distribution')
+axes[1, 0].axvline(x=0, color='r', linestyle='--')
+
+# 4. Q-Q Plot
+stats.probplot(residuals, dist="norm", plot=axes[1, 1])
+axes[1, 1].set_title('Q-Q Plot')
+
+plt.tight_layout()
+plt.show()
+
+# Check for normality of residuals
+from scipy.stats import shapiro
+stat, p_value = shapiro(residuals)
+print(f"Shapiro-Wilk test: statistic={stat:.4f}, p-value={p_value:.4f}")
+if p_value < 0.05:
+    print("⚠️ Residuals are not normally distributed")
+```
+
+## Complete Pipeline
+
+```python
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import train_test_split, cross_val_score, GridSearchCV
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.compose import ColumnTransformer
+from sklearn.pipeline import Pipeline
+from sklearn.impute import SimpleImputer
+from sklearn.linear_model import LinearRegression, Ridge
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import mean_squared_error, r2_score
+import joblib
+
+# 1. Load data
+df = pd.read_csv('regression_data.csv')
+target_col = 'target'
+
+# 2. Separate features and target
+X = df.drop(columns=[target_col])
+y = df[target_col]
+
+# 3. Identify column types
+numeric_features = X.select_dtypes(include=[np.number]).columns.tolist()
+categorical_features = X.select_dtypes(include=['object']).columns.tolist()
+
+# 4. Create preprocessor
+preprocessor = ColumnTransformer(
+    transformers=[
+        ('num', Pipeline([
+            ('imputer', SimpleImputer(strategy='median')),
+            ('scaler', StandardScaler())
+        ]), numeric_features),
+        ('cat', Pipeline([
+            ('imputer', SimpleImputer(strategy='most_frequent')),
+            ('encoder', OneHotEncoder(handle_unknown='ignore'))
+        ]), categorical_features)
+    ])
+
+# 5. Train/test split
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42
+)
+
+# 6. Create and train pipeline
+pipeline = Pipeline([
+    ('preprocessor', preprocessor),
+    ('regressor', RandomForestRegressor(n_estimators=100, random_state=42))
+])
+
+pipeline.fit(X_train, y_train)
+
+# 7. Evaluate
+y_pred = pipeline.predict(X_test)
+rmse = np.sqrt(mean_squared_error(y_test, y_pred))
+r2 = r2_score(y_test, y_pred)
+
+print(f"RMSE: {rmse:.4f}")
+print(f"R²: {r2:.4f}")
+
+# 8. Save pipeline
+joblib.dump(pipeline, 'regression_pipeline.joblib')
+```
+
+## Common Pitfalls
+
+### Ignoring Multicollinearity
+
+```python
+# BAD: Features are highly correlated
+# Coefficient interpretations become meaningless
+
+# GOOD: Check VIF (Variance Inflation Factor)
+from statsmodels.stats.outliers_influence import variance_inflation_factor
+
+vif_data = pd.DataFrame()
+vif_data["feature"] = feature_names
+vif_data["VIF"] = [variance_inflation_factor(X_scaled, i) for i in range(len(feature_names))]
+print(vif_data.sort_values('VIF', ascending=False))
+
+# Remove features with VIF > 10
+```
+
+### Not Checking Assumptions
+
+```python
+# Linear regression assumptions:
+# 1. Linearity: Relationship between X and y is linear
+# 2. Independence: Residuals are independent
+# 3. Homoscedasticity: Constant variance of residuals
+# 4. Normality: Residuals are normally distributed
+
+# Always check these before trusting linear regression results!
+```
+
+### Data Leakage
+
+```python
+# BAD: Normalizing before split
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X)  # LEAKAGE!
+X_train, X_test = train_test_split(X_scaled)
+
+# GOOD: Fit on train, transform both
+X_train, X_test, y_train, y_test = train_test_split(X, y)
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)  # Don't fit again!
+```
+
+## Best Practices Checklist
+
+- [ ] Analyze target distribution (check for skewness)
+- [ ] Handle missing values appropriately
+- [ ] Detect and handle outliers
+- [ ] Check for multicollinearity
+- [ ] Transform skewed features
+- [ ] Scale features appropriately
+- [ ] Use stratified/temporal splits when needed
+- [ ] Check regression assumptions
+- [ ] Use cross-validation for model selection
+- [ ] Perform residual analysis
+- [ ] Compare multiple models
+- [ ] Tune hyperparameters
+- [ ] Save pipeline for reproducibility

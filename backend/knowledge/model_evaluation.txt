@@ -1,0 +1,629 @@
+# Model Evaluation
+
+## Overview
+
+Model evaluation quantifies how well your model performs on unseen data. Different metrics are appropriate for different problems (regression vs. classification).
+
+## Regression Metrics
+
+### Mean Squared Error (MSE)
+
+The average of squared differences between predicted and actual values.
+
+```python
+from sklearn.metrics import mean_squared_error
+import numpy as np
+
+mse = mean_squared_error(y_true, y_pred)
+print(f"MSE: {mse:.4f}")
+```
+
+**Formula:**
+```
+MSE = (1/n) * Σ(y_true - y_pred)²
+```
+
+**Characteristics:**
+- Penalizes large errors heavily (squared)
+- Always positive
+- Units are squared (hard to interpret)
+- Lower is better
+
+**When to use:**
+- When large errors are particularly bad
+- When you want to penalize outliers
+- As a loss function for optimization
+
+### Root Mean Squared Error (RMSE)
+
+The square root of MSE, in original units.
+
+```python
+rmse = np.sqrt(mean_squared_error(y_true, y_pred))
+print(f"RMSE: {rmse:.4f}")
+```
+
+**Formula:**
+```
+RMSE = √(MSE)
+```
+
+**Characteristics:**
+- Same units as target variable
+- Penalizes large errors
+- Lower is better
+- More interpretable than MSE
+
+**When to use:**
+- Most common regression metric
+- When errors should be in same units as predictions
+- Default metric for Kaggle competitions
+
+### Mean Absolute Error (MAE)
+
+The average of absolute differences between predicted and actual values.
+
+```python
+from sklearn.metrics import mean_absolute_error
+
+mae = mean_absolute_error(y_true, y_pred)
+print(f"MAE: {mae:.4f}")
+```
+
+**Formula:**
+```
+MAE = (1/n) * Σ|y_true - y_pred|
+```
+
+**Characteristics:**
+- Linear penalties (all errors weighted equally)
+- Robust to outliers
+- Units same as target
+- Lower is better
+
+**When to use:**
+- When outliers should not dominate
+- When equal weighting of all errors is desired
+- Cost prediction (errors are linear in cost)
+
+### MAE vs RMSE Comparison
+
+```python
+# Example showing the difference
+import numpy as np
+
+y_true = [100, 110, 120, 130]
+y_pred = [100, 100, 100, 200]
+
+# RMSE heavily penalizes the last error
+rmse = np.sqrt(np.mean([(100-100)**2, (110-100)**2, (120-100)**2, (130-200)**2]))
+print(f"RMSE: {rmse:.2f}")  # 36.84
+
+# MAE weights all errors equally
+mae = np.mean([0, 10, 20, 70])
+print(f"MAE: {mae:.2f}")  # 25.0
+```
+
+### R-squared (R²)
+
+The proportion of variance explained by the model.
+
+```python
+from sklearn.metrics import r2_score
+
+r2 = r2_score(y_true, y_pred)
+print(f"R²: {r2:.4f}")
+```
+
+**Formula:**
+```
+R² = 1 - (SS_res / SS_tot)
+
+Where:
+SS_res = Σ(y_true - y_pred)²  (Residual Sum of Squares)
+SS_tot = Σ(y_true - y_mean)²  (Total Sum of Squares)
+```
+
+**Interpretation:**
+- R² = 1.0: Perfect prediction
+- R² = 0.0: Model predicts as well as mean
+- R² < 0: Model is worse than mean prediction
+- R² can be negative for very bad models
+
+**When to use:**
+- Default metric for regression
+- To compare models
+- To understand variance explained
+
+### Adjusted R-squared
+
+R² adjusted for number of features (prevents overfitting).
+
+```python
+def adjusted_r2(r2, n, p):
+    """Calculate adjusted R²."""
+    return 1 - (1 - r2) * (n - 1) / (n - p - 1)
+
+n = len(y_true)  # Number of samples
+p = X.shape[1]   # Number of features
+
+adj_r2 = adjusted_r2(r2, n, p)
+print(f"Adjusted R²: {adj_r2:.4f}")
+```
+
+## Classification Metrics
+
+### Accuracy
+
+The proportion of correct predictions.
+
+```python
+from sklearn.metrics import accuracy_score
+
+accuracy = accuracy_score(y_true, y_pred)
+print(f"Accuracy: {accuracy:.4f}")
+```
+
+**Formula:**
+```
+Accuracy = (TP + TN) / (TP + TN + FP + FN)
+```
+
+**When to use:**
+- Balanced classes
+- General performance overview
+- Baseline metric
+
+**⚠️ Warning:** Accuracy is misleading for imbalanced data!
+
+```python
+# Example: 95% of samples are class A, 5% are class B
+# A model predicting all A gets 95% accuracy!
+
+# Always check class distribution
+print(f"Class distribution: {np.bincount(y_true)}")
+
+# Better metrics for imbalanced data:
+# - Precision, Recall, F1
+# - ROC-AUC
+# - Confusion Matrix
+```
+
+### Confusion Matrix
+
+A table showing correct vs. incorrect predictions by class.
+
+```python
+from sklearn.metrics import confusion_matrix
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+cm = confusion_matrix(y_true, y_pred)
+
+plt.figure(figsize=(8, 6))
+sns.heatmap(cm, annot=True, fmt='d', cmap='Blues')
+plt.xlabel('Predicted')
+plt.ylabel('Actual')
+plt.title('Confusion Matrix')
+plt.show()
+
+print(f"\nConfusion Matrix:\n{cm}")
+```
+
+**Confusion Matrix Structure:**
+
+```
+                Predicted
+              | Neg  | Pos
+Actual  ------+------+------
+  Neg         | TN   | FP
+              |      |
+  Pos         | FN   | TP
+```
+
+**Terms:**
+- **TN (True Negative):** Correctly predicted negative
+- **FP (False Positive):** Incorrectly predicted positive (Type I Error)
+- **FN (False Negative):** Incorrectly predicted negative (Type II Error)
+- **TP (True Positive):** Correctly predicted positive
+
+### Precision
+
+The proportion of positive predictions that are correct.
+
+```python
+from sklearn.metrics import precision_score
+
+precision = precision_score(y_true, y_pred)
+print(f"Precision: {precision:.4f}")
+```
+
+**Formula:**
+```
+Precision = TP / (TP + FP)
+```
+
+**When to use:**
+- When false positives are costly
+- Example: Email spam detection (don't mark important emails as spam)
+- Medical diagnosis (don't diagnose healthy people)
+
+### Recall (Sensitivity/True Positive Rate)
+
+The proportion of actual positives that are correctly predicted.
+
+```python
+from sklearn.metrics import recall_score
+
+recall = recall_score(y_true, y_pred)
+print(f"Recall: {recall:.4f}")
+```
+
+**Formula:**
+```
+Recall = TP / (TP + FN)
+```
+
+**When to use:**
+- When false negatives are costly
+- Example: Cancer detection (don't miss cancer cases)
+- Fraud detection (don't miss fraudulent transactions)
+
+### F1 Score
+
+The harmonic mean of precision and recall.
+
+```python
+from sklearn.metrics import f1_score
+
+f1 = f1_score(y_true, y_pred)
+print(f"F1 Score: {f1:.4f}")
+```
+
+**Formula:**
+```
+F1 = 2 * (Precision * Recall) / (Precision + Recall)
+```
+
+**When to use:**
+- When you need balance between precision and recall
+- Imbalanced datasets
+- Default classification metric
+
+### Precision-Recall Trade-off
+
+```python
+from sklearn.metrics import precision_recall_curve
+import matplotlib.pyplot as plt
+
+precisions, recalls, thresholds = precision_recall_curve(y_true, y_proba)
+
+plt.figure(figsize=(10, 6))
+plt.plot(thresholds, precisions[:-1], label='Precision')
+plt.plot(thresholds, recalls[:-1], label='Recall')
+plt.xlabel('Threshold')
+plt.ylabel('Score')
+plt.legend()
+plt.title('Precision-Recall Trade-off')
+plt.show()
+```
+
+**Choosing Threshold:**
+
+```python
+# Lower threshold = Higher recall, Lower precision
+# Higher threshold = Lower recall, Higher precision
+
+# Find threshold for specific precision
+target_precision = 0.90
+idx = np.where(precisions >= target_precision)[0][0]
+threshold = thresholds[idx]
+print(f"Threshold for {target_precision*100}% precision: {threshold:.3f}")
+```
+
+### Specificity (True Negative Rate)
+
+The proportion of actual negatives that are correctly predicted.
+
+```python
+# Calculate manually
+tn, fp, fn, tp = cm.ravel()
+specificity = tn / (tn + fp)
+print(f"Specificity: {specificity:.4f}")
+```
+
+**Formula:**
+```
+Specificity = TN / (TN + FP)
+```
+
+### FPR (False Positive Rate)
+
+The proportion of negatives incorrectly predicted as positive.
+
+```python
+fpr = fp / (fp + tn)
+print(f"FPR: {fpr:.4f}")
+```
+
+### Specificity vs Sensitivity
+
+```
+                Actual Positive    Actual Negative
+Predicted Pos    TP (Hit)          FP (False Alarm)
+Predicted Neg    FN (Miss)         TN (Correct Rejection)
+
+Sensitivity (Recall) = TP / (TP + FN)  → Hit rate
+Specificity         = TN / (TN + FP)  → Correct rejection rate
+```
+
+## ROC Curve and AUC
+
+### ROC Curve
+
+```python
+from sklearn.metrics import roc_curve, roc_auc_score
+import matplotlib.pyplot as plt
+
+# Get probability predictions
+y_proba = model.predict_proba(X_test)[:, 1]
+
+# Calculate ROC curve
+fpr, tpr, thresholds = roc_curve(y_test, y_proba)
+
+# Plot
+plt.figure(figsize=(8, 6))
+plt.plot(fpr, tpr, linewidth=2, label='Model')
+plt.plot([0, 1], [0, 1], 'k--', label='Random')
+plt.xlabel('False Positive Rate')
+plt.ylabel('True Positive Rate')
+plt.title('ROC Curve')
+plt.legend()
+plt.show()
+
+# AUC Score
+auc = roc_auc_score(y_test, y_proba)
+print(f"AUC: {auc:.4f}")
+```
+
+### AUC Interpretation
+
+| AUC | Interpretation |
+|-----|----------------|
+| 0.5 | Random classifier |
+| 0.6-0.7 | Poor |
+| 0.7-0.8 | Fair |
+| 0.8-0.9 | Good |
+| 0.9-1.0 | Excellent |
+
+**AUC is threshold-independent**, making it useful for comparing models.
+
+## Complete Evaluation Example
+
+```python
+import numpy as np
+import pandas as pd
+from sklearn.metrics import (
+    mean_squared_error, mean_absolute_error, r2_score,
+    accuracy_score, precision_score, recall_score, f1_score,
+    confusion_matrix, classification_report, roc_auc_score
+)
+
+# ============================================
+# REGRESSION EVALUATION
+# ============================================
+
+def evaluate_regression(y_true, y_pred):
+    """Complete regression evaluation."""
+    results = {
+        'RMSE': np.sqrt(mean_squared_error(y_true, y_pred)),
+        'MAE': mean_absolute_error(y_true, y_pred),
+        'R²': r2_score(y_true, y_pred),
+        'MSE': mean_squared_error(y_true, y_pred)
+    }
+    
+    # Calculate MAPE (Mean Absolute Percentage Error)
+    results['MAPE'] = np.mean(np.abs((y_true - y_pred) / y_true)) * 100
+    
+    return pd.DataFrame([results])
+
+print("=== REGRESSION EVALUATION ===")
+print(evaluate_regression(y_test, y_pred))
+
+# ============================================
+# CLASSIFICATION EVALUATION
+# ============================================
+
+def evaluate_classification(y_true, y_pred, y_proba=None):
+    """Complete classification evaluation."""
+    results = {
+        'Accuracy': accuracy_score(y_true, y_pred),
+        'Precision': precision_score(y_true, y_pred),
+        'Recall': recall_score(y_true, y_pred),
+        'F1': f1_score(y_true, y_pred)
+    }
+    
+    if y_proba is not None:
+        results['AUC'] = roc_auc_score(y_true, y_proba)
+    
+    print("=== CLASSIFICATION EVALUATION ===")
+    print(pd.DataFrame([results]))
+    
+    print("\n=== CONFUSION MATRIX ===")
+    cm = confusion_matrix(y_true, y_pred)
+    print(cm)
+    
+    print("\n=== CLASSIFICATION REPORT ===")
+    print(classification_report(y_true, y_pred))
+
+# Usage
+evaluate_classification(y_test, predictions, y_proba)
+```
+
+## Metric Selection Guide
+
+```
+What metric should I use?
+
+REGRESSION:
+├── Want interpretable errors in original units?
+│   └── MAE
+├── Want to penalize large errors heavily?
+│   └── RMSE
+├── Want to compare models / explain variance?
+│   └── R²
+└── Want all of the above?
+    └── Report all three
+
+CLASSIFICATION:
+├── Balanced classes + general accuracy?
+│   └── Accuracy
+├── Costly false positives?
+│   └── Precision
+├── Costly false negatives?
+│   └── Recall
+├── Balance precision and recall?
+│   └── F1 Score
+├── Threshold-independent comparison?
+│   └── AUC-ROC
+└── Report multiple metrics
+    └── Classification Report (includes all)
+```
+
+## Cross-Validation Evaluation
+
+```python
+from sklearn.model_selection import cross_val_score, cross_validate
+import numpy as np
+
+# Multiple metrics at once
+scoring = ['neg_mean_squared_error', 'neg_mean_absolute_error', 'r2']
+
+results = cross_validate(
+    model, X, y,
+    cv=5,
+    scoring=scoring,
+    return_train_score=True
+)
+
+# Convert to positive RMSE and MAE
+rmse_scores = np.sqrt(-results['test_neg_mean_squared_error'])
+mae_scores = -results['test_neg_mean_absolute_error']
+r2_scores = results['test_r2']
+
+print(f"CV RMSE: {rmse_scores.mean():.4f} (+/- {rmse_scores.std():.4f})")
+print(f"CV MAE: {mae_scores.mean():.4f} (+/- {mae_scores.std():.4f})")
+print(f"CV R²: {r2_scores.mean():.4f} (+/- {r2_scores.std():.4f})")
+```
+
+## Visual Evaluation
+
+### Residual Analysis (Regression)
+
+```python
+import matplotlib.pyplot as plt
+import numpy as np
+
+residuals = y_test - y_pred
+
+fig, axes = plt.subplots(2, 2, figsize=(12, 10))
+
+# Predicted vs Actual
+axes[0, 0].scatter(y_test, y_pred, alpha=0.5)
+axes[0, 0].plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], 'r--')
+axes[0, 0].set_xlabel('Actual')
+axes[0, 0].set_ylabel('Predicted')
+axes[0, 0].set_title('Predicted vs Actual')
+
+# Residuals histogram
+axes[0, 1].hist(residuals, bins=30, edgecolor='black')
+axes[0, 1].set_xlabel('Residual')
+axes[0, 1].set_ylabel('Frequency')
+axes[0, 1].set_title('Residual Distribution')
+
+# Residuals vs Predicted
+axes[1, 0].scatter(y_pred, residuals, alpha=0.5)
+axes[1, 0].axhline(y=0, color='r', linestyle='--')
+axes[1, 0].set_xlabel('Predicted')
+axes[1, 0].set_ylabel('Residual')
+axes[1, 0].set_title('Residuals vs Predicted')
+
+# Q-Q Plot (Normality check)
+from scipy import stats
+stats.probplot(residuals, dist="norm", plot=axes[1, 1])
+axes[1, 1].set_title('Q-Q Plot')
+
+plt.tight_layout()
+plt.show()
+```
+
+### Learning Curve
+
+```python
+from sklearn.model_selection import learning_curve
+
+train_sizes, train_scores, val_scores = learning_curve(
+    model, X, y,
+    train_sizes=np.linspace(0.1, 1.0, 10),
+    cv=5,
+    scoring='neg_mean_squared_error'
+)
+
+train_rmse = np.sqrt(-train_scores)
+val_rmse = np.sqrt(-val_scores)
+
+plt.figure(figsize=(10, 6))
+plt.plot(train_sizes, train_rmse.mean(axis=1), 'o-', label='Training')
+plt.plot(train_sizes, val_rmse.mean(axis=1), 'o-', label='Validation')
+plt.fill_between(train_sizes, train_rmse.mean(axis=1) - train_rmse.std(axis=1),
+                 train_rmse.mean(axis=1) + train_rmse.std(axis=1), alpha=0.1)
+plt.fill_between(train_sizes, val_rmse.mean(axis=1) - val_rmse.std(axis=1),
+                 val_rmse.mean(axis=1) + val_rmse.std(axis=1), alpha=0.1)
+plt.xlabel('Training Size')
+plt.ylabel('RMSE')
+plt.title('Learning Curve')
+plt.legend()
+plt.show()
+```
+
+## Best Practices
+
+### Always Evaluate on Test Set
+
+```python
+# NEVER evaluate on training set (will be overly optimistic)
+train_pred = model.predict(X_train)
+train_r2 = r2_score(y_train, train_pred)
+print(f"Train R²: {train_r2:.4f}")  # This is NOT a valid metric!
+
+# Always use held-out test set
+test_pred = model.predict(X_test)
+test_r2 = r2_score(y_test, test_pred)
+print(f"Test R²: {test_r2:.4f}")  # This is valid
+```
+
+### Compare Multiple Metrics
+
+```python
+# Single metric can be misleading
+print(f"Accuracy: {accuracy:.4f}")  # 95% sounds great
+
+# But check other metrics
+print(f"Precision: {precision:.4f}")  # 0.99
+print(f"Recall: {recall:.4f}")        # 0.10 (missed 90% of positives!)
+```
+
+### Avoid Overfitting Detection
+
+```python
+# Large gap between train and test metrics = overfitting
+train_r2 = r2_score(y_train, train_pred)
+test_r2 = r2_score(y_test, test_pred)
+
+print(f"Train R²: {train_r2:.4f}")
+print(f"Test R²: {test_r2:.4f}")
+print(f"Gap: {train_r2 - test_r2:.4f}")
+
+if train_r2 - test_r2 > 0.1:
+    print("⚠️ WARNING: Possible overfitting detected!")
+```

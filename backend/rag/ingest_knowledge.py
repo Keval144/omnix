@@ -1,30 +1,33 @@
 import os
-from rag.vector_store import add_document
+from pathlib import Path
 
-KNOWLEDGE_DIR = "knowledge"
+from config import BASE_DIR
+from rag.vector_store import add_document
 
 
 def ingest():
+    knowledge_dir = BASE_DIR / "knowledge"
 
-    if not os.path.exists(KNOWLEDGE_DIR):
-        print("Knowledge folder not found")
+    if not knowledge_dir.exists():
+        print(f"Knowledge folder not found at {knowledge_dir}")
         return
 
-    for file in os.listdir(KNOWLEDGE_DIR):
+    txt_files = sorted(knowledge_dir.glob("*.txt"))
+    
+    if not txt_files:
+        print("No .txt files found in knowledge directory")
+        return
 
-        path = os.path.join(KNOWLEDGE_DIR, file)
-
-        if not file.endswith(".txt"):
-            continue
-
+    for path in txt_files:
+        file_name = path.name
+        
         with open(path, "r", encoding="utf-8") as f:
             text = f.read()
 
-        add_document(text, file)
+        add_document(text, file_name)
+        print(f"Ingested {file_name}")
 
-        print(f"Ingested {file}")
-
-    print("Knowledge base created successfully")
+    print(f"\nKnowledge base created successfully ({len(txt_files)} files)")
 
 
 if __name__ == "__main__":

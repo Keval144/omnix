@@ -1,0 +1,715 @@
+# Testing and Validation
+
+## Overview
+
+Testing ensures your ML pipeline produces correct, reliable results. Validation strategies prevent overfitting and provide robust performance estimates.
+
+## Unit Testing ML Pipelines
+
+### Basic Assertions
+
+```python
+import numpy as np
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
+from sklearn.ensemble import RandomForestRegressor
+
+def test_data_preprocessing():
+    """Test data preprocessing steps."""
+    # Create sample data
+    df = pd.DataFrame({
+        'feature1': [1, 2, 3, 4, 5],
+        'feature2': [10, 20, 30, 40, 50],
+        'target': [100, 200, 300, 400, 500]
+    })
+    
+    X = df.drop('target', axis=1)
+    y = df['target']
+    
+    # Assert shapes
+    assert X.shape[0] == 5, "Feature shape incorrect"
+    assert y.shape[0] == 5, "Target shape incorrect"
+    
+    # Assert no NaN
+    assert not X.isnull().any().any(), "NaN values in features"
+    assert not y.isnull().any(), "NaN values in target"
+    
+    print("✓ Data preprocessing tests passed")
+
+def test_train_test_split():
+    """Test train/test split."""
+    X = np.random.randn(100, 5)
+    y = np.random.randn(100)
+    
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=42
+    )
+    
+    # Assert correct split ratio
+    assert len(X_train) == 80, f"Expected 80 train samples, got {len(X_train)}"
+    assert len(X_test) == 20, f"Expected 20 test samples, got {len(X_test)}"
+    
+    # Assert no overlap
+    assert len(set(range(100)) - set(range(80)) - set(range(80, 100))) == 0
+    
+    print("✓ Train/test split tests passed")
+
+def test_pipeline_fitting():
+    """Test pipeline fitting."""
+    X = np.random.randn(100, 5)
+    y = np.random.randn(100)
+    
+    pipeline = Pipeline([
+        ('scaler', StandardScaler()),
+        ('model', RandomForestRegressor(n_estimators=10, random_state=42))
+    ])
+    
+    # Fit pipeline
+    pipeline.fit(X_train, y_train)
+    
+    # Assert model is fitted
+    assert hasattr(pipeline.named_steps['model'], 'feature_importances_')
+    assert len(pipeline.named_steps['model'].feature_importances_) == 5
+    
+    print("✓ Pipeline fitting tests passed")
+
+def test_prediction_shape():
+    """Test prediction output shape."""
+    X_train = np.random.randn(80, 5)
+    y_train = np.random.randn(80)
+    X_test = np.random.randn(20, 5)
+    
+    model = RandomForestRegressor(n_estimators=10, random_state=42)
+    model.fit(X_train, y_train)
+    predictions = model.predict(X_test)
+    
+    assert predictions.shape == (20,), f"Expected shape (20,), got {predictions.shape}"
+    print("✓ Prediction shape tests passed")
+```
+
+### Running Tests
+
+```python
+# Run all tests
+if __name__ == "__main__":
+    test_data_preprocessing()
+    test_train_test_split()
+    test_pipeline_fitting()
+    test_prediction_shape()
+    print("\n✓ All tests passed!")
+```
+
+### Using pytest
+
+```python
+# test_ml_pipeline.py
+import pytest
+import numpy as np
+import pandas as pd
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
+from sklearn.ensemble import RandomForestRegressor
+
+@pytest.fixture
+def sample_data():
+    """Fixture for sample data."""
+    np.random.seed(42)
+    X = pd.DataFrame({
+        'feature1': np.random.randn(100),
+        'feature2': np.random.randn(100),
+        'feature3': np.random.randn(100)
+    })
+    y = X['feature1'] * 2 + X['feature2'] + np.random.randn(100) * 0.1
+    return X, y
+
+@pytest.fixture
+def trained_pipeline(sample_data):
+    """Fixture for trained pipeline."""
+    X, y = sample_data
+    pipeline = Pipeline([
+        ('scaler', StandardScaler()),
+        ('model', RandomForestRegressor(n_estimators=10, random_state=42))
+    ])
+    pipeline.fit(X, y)
+    return pipeline
+
+def test_data_shape(sample_data):
+    X, y = sample_data
+    assert X.shape == (100, 3)
+    assert len(y) == 100
+
+def test_no_missing_values(sample_data):
+    X, y = sample_data
+    assert not X.isnull().any().any()
+    assert not y.isnull().any()
+
+def test_pipeline_prediction(trained_pipeline, sample_data):
+    X, y = sample_data
+    predictions = trained_pipeline.predict(X)
+    assert predictions.shape == y.shape
+    assert not np.isnan(predictions).any()
+
+def test_pipeline_inverse_transform(trained_pipeline, sample_data):
+    X, y = sample_data
+    X_scaled = trained_pipeline.named_steps['scaler'].transform(X)
+    X_restored = trained_pipeline.named_steps['scaler'].inverse_transform(X_scaled)
+    np.testing.assert_array_almost_equal(X, X_restored)
+
+# Run with: pytest test_ml_pipeline.py -v
+```
+
+## Overfitting vs Underfitting
+
+### Visualizing Model Complexity
+
+```
+                    Error
+                    |
+        Overfitting |          /\
+                    |        /  \
+                    |      /    \___
+                    |    /        \  ← High variance (overfitting)
+                    |   /           \
+                    |  /             \  ← Train error low
+                    | /               \  ← Test error high
+                    |/-----------------\___-----→ Complexity
+                    |                    ↑
+                    |              Gap indicates overfitting
+                    |
+                    |         /\  ← Best balance
+                    |        /  \____
+                    |       /        \___
+                    |      /              \
+                    |_____/                \___← Underfitting
+                    |                    ↑
+                    |            Both errors high
+```
+
+### Detection and Diagnosis
+
+```python
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split, learning_curve
+from sklearn.linear_model import LinearRegression
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.preprocessing import PolynomialFeatures
+from sklearn.pipeline import Pipeline
+
+# Generate non-linear data
+np.random.seed(42)
+X = np.sort(np.random.randn(100, 1) * 5)
+y = np.sin(X) + np.random.randn(100, 1) * 0.3
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Test different polynomial degrees
+degrees = [1, 3, 10, 30]
+train_errors = []
+test_errors = []
+
+for degree in degrees:
+    # Create pipeline
+    model = Pipeline([
+        ('poly', PolynomialFeatures(degree=degree)),
+        ('reg', LinearRegression())
+    ])
+    
+    model.fit(X_train, y_train)
+    
+    train_pred = model.predict(X_train)
+    test_pred = model.predict(X_test)
+    
+    train_mse = np.mean((y_train - train_pred) ** 2)
+    test_mse = np.mean((y_test - test_pred) ** 2)
+    
+    train_errors.append(train_mse)
+    test_errors.append(test_mse)
+    
+    print(f"Degree {degree}: Train MSE = {train_mse:.4f}, Test MSE = {test_mse:.4f}")
+
+# Detect overfitting
+for i, degree in enumerate(degrees):
+    gap = test_errors[i] - train_errors[i]
+    status = "⚠️ OVERFITTING" if gap > 0.1 else "✓ OK"
+    print(f"Degree {degree}: Gap = {gap:.4f} {status}")
+```
+
+### Solutions for Overfitting
+
+```python
+# 1. More training data
+#    Plot learning curve to see if more data helps
+
+train_sizes, train_scores, test_scores = learning_curve(
+    model, X, y,
+    train_sizes=np.linspace(0.1, 1.0, 10),
+    cv=5,
+    scoring='neg_mean_squared_error'
+)
+
+# 2. Reduce model complexity
+# For Random Forest:
+model = RandomForestRegressor(max_depth=5, n_estimators=50)
+
+# For Polynomial features:
+model = Pipeline([
+    ('poly', PolynomialFeatures(degree=2)),  # Reduce degree
+    ('reg', LinearRegression())
+])
+
+# 3. Regularization
+from sklearn.linear_model import Ridge, Lasso
+
+# Ridge (L2): Shrinks coefficients but never to zero
+model = Ridge(alpha=1.0)
+
+# Lasso (L1): Can shrink coefficients to zero (feature selection)
+model = Lasso(alpha=0.1)
+
+# 4. Cross-validation for hyperparameter tuning
+from sklearn.model_selection import GridSearchCV
+
+param_grid = {
+    'model__max_depth': [3, 5, 7, 10],
+    'model__n_estimators': [50, 100, 200]
+}
+
+grid_search = GridSearchCV(pipeline, param_grid, cv=5, scoring='neg_mean_squared_error')
+grid_search.fit(X_train, y_train)
+
+# 5. Feature selection
+from sklearn.feature_selection import SelectKBest, f_regression
+
+pipeline = Pipeline([
+    ('feature_selection', SelectKBest(k=5)),
+    ('model', RandomForestRegressor())
+])
+```
+
+## Bias vs Variance
+
+### Understanding the Trade-off
+
+| Aspect | High Bias | High Variance |
+|--------|-----------|--------------|
+| **Also called** | Underfitting | Overfitting |
+| **Training error** | High | Low |
+| **Test error** | High | High |
+| **Problem** | Model too simple | Model too complex |
+| **Solution** | More features, less regularization | More data, more regularization |
+
+### Visual Representation
+
+```python
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.linear_model import LinearRegression
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.preprocessing import PolynomialFeatures
+from sklearn.pipeline import Pipeline
+
+np.random.seed(42)
+
+# True function: y = sin(x)
+X = np.sort(np.random.uniform(-5, 5, 100))[:, np.newaxis]
+y_true = np.sin(X)
+y = y_true + np.random.randn(100, 1) * 0.3
+
+# High Bias Model (Linear)
+bias_model = Pipeline([
+    ('poly', PolynomialFeatures(degree=1)),
+    ('reg', LinearRegression())
+])
+bias_model.fit(X, y)
+y_pred_bias = bias_model.predict(X)
+
+# High Variance Model (Polynomial, degree=30)
+variance_model = Pipeline([
+    ('poly', PolynomialFeatures(degree=30)),
+    ('reg', LinearRegression())
+])
+variance_model.fit(X, y)
+y_pred_variance = variance_model.predict(X)
+
+# Balanced Model (degree=5)
+balanced_model = Pipeline([
+    ('poly', PolynomialFeatures(degree=5)),
+    ('reg', LinearRegression())
+])
+balanced_model.fit(X, y)
+y_pred_balanced = balanced_model.predict(X)
+
+# Plot
+fig, axes = plt.subplots(1, 3, figsize=(15, 4))
+
+# High Bias
+axes[0].scatter(X, y, alpha=0.5, label='Data')
+axes[0].plot(X, y_pred_bias, 'r-', linewidth=2, label='Model')
+axes[0].set_title('High Bias (Underfitting)\nSimple model misses patterns')
+axes[0].legend()
+
+# High Variance
+axes[1].scatter(X, y, alpha=0.5, label='Data')
+axes[1].plot(X, y_pred_variance, 'r-', linewidth=2, label='Model')
+axes[1].set_title('High Variance (Overfitting)\nComplex model fits noise')
+axes[1].legend()
+
+# Balanced
+axes[2].scatter(X, y, alpha=0.5, label='Data')
+axes[2].plot(X, y_pred_balanced, 'r-', linewidth=2, label='Model')
+axes[2].set_title('Balanced\nGood fit to both patterns and data')
+axes[2].legend()
+
+plt.tight_layout()
+plt.show()
+```
+
+### Quantifying Bias and Variance
+
+```python
+from sklearn.model_selection import cross_val_score
+import numpy as np
+
+# Train multiple models with bootstrap sampling
+def bias_variance_decomposition(model, X, y, n_bootstrap=50):
+    """Estimate bias and variance of a model."""
+    predictions = np.zeros((n_bootstrap, len(X)))
+    
+    for i in range(n_bootstrap):
+        # Bootstrap sample
+        indices = np.random.randint(0, len(X), len(X))
+        X_boot = X[indices]
+        y_boot = y[indices]
+        
+        # Train and predict
+        model_clone = model.__class__(**model.get_params())
+        model_clone.fit(X_boot, y_boot)
+        predictions[i] = model_clone.predict(X)
+    
+    # Bias² = (mean prediction - true value)²
+    mean_pred = predictions.mean(axis=0)
+    bias_squared = np.mean((mean_pred - y) ** 2)
+    
+    # Variance = mean of (prediction - mean prediction)²
+    variance = np.mean(np.var(predictions, axis=0))
+    
+    # Total error = Bias² + Variance
+    total_error = bias_squared + variance
+    
+    return {
+        'bias²': bias_squared,
+        'variance': variance,
+        'total_error': total_error,
+        'expected_test_error': total_error + np.var(y)  # Add irreducible error
+    }
+
+# Compare models
+from sklearn.tree import DecisionTreeRegressor
+
+models = {
+    'Depth=1': DecisionTreeRegressor(max_depth=1, random_state=42),
+    'Depth=5': DecisionTreeRegressor(max_depth=5, random_state=42),
+    'Depth=20': DecisionTreeRegressor(max_depth=20, random_state=42),
+}
+
+for name, model in models.items():
+    result = bias_variance_decomposition(model, X, y, n_bootstrap=50)
+    print(f"\n{name}:")
+    print(f"  Bias²: {result['bias²']:.4f}")
+    print(f"  Variance: {result['variance']:.4f}")
+    print(f"  Total Error: {result['total_error']:.4f}")
+```
+
+## Validation Strategies
+
+### K-Fold Cross-Validation
+
+```python
+from sklearn.model_selection import KFold, cross_val_score
+import numpy as np
+
+# Standard K-Fold
+kf = KFold(n_splits=5, shuffle=True, random_state=42)
+
+model = RandomForestRegressor(n_estimators=100, random_state=42)
+scores = cross_val_score(model, X, y, cv=kf, scoring='neg_mean_squared_error')
+
+print(f"CV RMSE: {np.sqrt(-scores).mean():.4f} (+/- {np.sqrt(-scores).std():.4f})")
+
+# Manual implementation
+fold_errors = []
+for fold, (train_idx, val_idx) in enumerate(kf.split(X)):
+    X_train, X_val = X[train_idx], X[val_idx]
+    y_train, y_val = y[train_idx], y[val_idx]
+    
+    model.fit(X_train, y_train)
+    y_pred = model.predict(X_val)
+    
+    mse = np.mean((y_val - y_pred) ** 2)
+    fold_errors.append(mse)
+    
+    print(f"Fold {fold+1}: MSE = {mse:.4f}")
+
+print(f"\nMean MSE: {np.mean(fold_errors):.4f}")
+print(f"Std MSE: {np.std(fold_errors):.4f}")
+```
+
+### Stratified K-Fold (Classification)
+
+```python
+from sklearn.model_selection import StratifiedKFold
+from sklearn.metrics import accuracy_score
+
+skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+
+fold_accuracies = []
+for fold, (train_idx, val_idx) in enumerate(skf.split(X, y)):
+    X_train, X_val = X[train_idx], X[val_idx]
+    y_train, y_val = y[train_idx], y[val_idx]
+    
+    model.fit(X_train, y_train)
+    y_pred = model.predict(X_val)
+    
+    acc = accuracy_score(y_val, y_pred)
+    fold_accuracies.append(acc)
+    
+    print(f"Fold {fold+1}: Accuracy = {acc:.4f}")
+
+print(f"\nMean Accuracy: {np.mean(fold_accuracies):.4f}")
+print(f"Std Accuracy: {np.std(fold_accuracies):.4f}")
+```
+
+### Repeated K-Fold
+
+```python
+from sklearn.model_selection import RepeatedKFold
+
+# 5-Fold repeated 10 times (50 total evaluations)
+rkf = RepeatedKFold(n_splits=5, n_repeats=10, random_state=42)
+
+scores = cross_val_score(model, X, y, cv=rkf, scoring='neg_mean_squared_error')
+
+print(f"CV RMSE: {np.sqrt(-scores).mean():.4f} (+/- {np.sqrt(-scores).std():.4f})")
+print(f"Number of evaluations: {len(scores)}")
+```
+
+### Leave-One-Out Cross-Validation (LOOCV)
+
+```python
+from sklearn.model_selection import LeaveOneOut
+from sklearn.linear_model import LinearRegression
+
+# For small datasets only (n evaluations for n samples)
+loocv = LeaveOneOut()
+
+errors = []
+for train_idx, val_idx in loocv.split(X):
+    X_train, X_val = X[train_idx], X[val_idx]
+    y_train, y_val = y[train_idx], y[val_idx]
+    
+    model.fit(X_train, y_train)
+    y_pred = model.predict(X_val)
+    
+    errors.append((y_val - y_pred) ** 2)
+
+loocv_mse = np.mean(errors)
+print(f"LOOCV MSE: {loocv_mse:.4f}")
+```
+
+## Edge Cases
+
+### Missing Features at Inference
+
+```python
+def predict_with_fallback(model, X, expected_features, fallback_value=0):
+    """Predict with fallback for missing features."""
+    X = X.copy()
+    
+    # Check for missing features
+    missing_features = set(expected_features) - set(X.columns)
+    
+    if missing_features:
+        print(f"Warning: Missing features: {missing_features}")
+        for feat in missing_features:
+            X[feat] = fallback_value
+    
+    # Ensure column order matches training
+    X = X[expected_features]
+    
+    return model.predict(X)
+
+# Usage
+expected_features = ['feature1', 'feature2', 'feature3']
+X_new = pd.DataFrame({'feature1': [1, 2], 'feature2': [3, 4]})  # Missing feature3
+
+predictions = predict_with_fallback(model, X_new, expected_features)
+```
+
+### Unseen Categories
+
+```python
+# Training data
+train_categories = df_train['category'].unique()
+print(f"Training categories: {train_categories}")
+
+# Test data with unseen category
+test_categories = df_test['category'].unique()
+unseen = set(test_categories) - set(train_categories)
+
+print(f"Unseen categories: {unseen}")
+
+# Solution 1: Handle in preprocessing
+pipeline = Pipeline([
+    ('encoder', OneHotEncoder(handle_unknown='ignore')),  # Ignores unseen
+    ('model', RandomForestRegressor())
+])
+
+# Solution 2: Map unseen to most common
+def handle_unseen_categories(train_df, test_df, column):
+    most_common = train_df[column].mode()[0]
+    test_df[column] = test_df[column].apply(
+        lambda x: x if x in train_df[column].unique() else most_common
+    )
+    return test_df
+
+# Solution 3: Use ordinal encoding with unknown category
+from sklearn.preprocessing import OrdinalEncoder
+
+categories = list(train_categories) + ['UNKNOWN']
+encoder = OrdinalEncoder(categories=[categories])
+```
+
+### Class Imbalance Handling
+
+```python
+# Check class distribution
+print(f"Class distribution:\n{df['target'].value_counts()}")
+print(f"\nClass percentages:\n{df['target'].value_counts(normalize=True)}")
+
+# Stratified split to maintain distribution
+from sklearn.model_selection import StratifiedShuffleSplit
+
+sss = StratifiedShuffleSplit(n_splits=1, test_size=0.2, random_state=42)
+for train_idx, test_idx in sss.split(X, y):
+    X_train, X_test = X[train_idx], X[test_idx]
+    y_train, y_test = y[train_idx], y[test_idx]
+
+# Use appropriate metrics
+from sklearn.metrics import classification_report, confusion_matrix
+
+print(classification_report(y_test, predictions))
+
+# Consider class weights
+from sklearn.ensemble import RandomForestClassifier
+
+model = RandomForestClassifier(
+    class_weight='balanced',  # Automatic balancing
+    # or: class_weight={0: 1, 1: 10}  # Manual weights
+)
+```
+
+### Empty Test Set
+
+```python
+def validate_test_set(X_test, y_test):
+    """Validate test set is not empty."""
+    if len(X_test) == 0:
+        raise ValueError("Test set is empty!")
+    
+    if len(X_test) < 10:
+        print(f"Warning: Test set has only {len(X_test)} samples")
+    
+    if len(np.unique(y_test)) < 2:
+        print("Warning: Test set has only one class")
+```
+
+### Feature Drift Detection
+
+```python
+import numpy as np
+from scipy.stats import ks_2samp
+
+def detect_feature_drift(train_data, new_data, threshold=0.05):
+    """Detect if new data has drifted from training data."""
+    drift_report = {}
+    
+    for col in train_data.columns:
+        statistic, p_value = ks_2samp(train_data[col], new_data[col])
+        drift_report[col] = {
+            'ks_statistic': statistic,
+            'p_value': p_value,
+            'drifted': p_value < threshold
+        }
+    
+    return drift_report
+
+# Check for drift
+drift = detect_feature_drift(X_train, X_new)
+
+for feature, result in drift.items():
+    if result['drifted']:
+        print(f"⚠️ {feature} has drifted (p={result['p_value']:.4f})")
+```
+
+## Best Practices
+
+### Reproducibility
+
+```python
+# Set all random seeds
+import random
+import numpy as np
+import os
+
+RANDOM_STATE = 42
+
+random.seed(RANDOM_STATE)
+np.random.seed(RANDOM_STATE)
+os.environ['PYTHONHASHSEED'] = str(RANDOM_STATE)
+
+# In sklearn
+model = RandomForestRegressor(random_state=RANDOM_STATE)
+
+# In train_test_split
+X_train, X_test = train_test_split(X, random_state=RANDOM_STATE)
+```
+
+### Validation Checklist
+
+```python
+def validate_pipeline():
+    """Complete validation checklist."""
+    checks = []
+    
+    # 1. Data validation
+    checks.append(("No NaN in features", not X_train.isnull().any().any()))
+    checks.append(("No NaN in target", not y_train.isnull().any()))
+    checks.append(("No infinite values", np.isfinite(X_train).all().all()))
+    
+    # 2. Shape validation
+    checks.append(("X_train not empty", len(X_train) > 0))
+    checks.append(("X_test not empty", len(X_test) > 0))
+    checks.append(("Same feature count", X_train.shape[1] == X_test.shape[1]))
+    
+    # 3. Distribution validation
+    checks.append(("Stratified split", abs(y_train.mean() - y_test.mean()) < 0.05))
+    
+    # 4. Model validation
+    model.fit(X_train, y_train)
+    checks.append(("Model fitted", hasattr(model, 'feature_importances_')))
+    
+    # 5. Prediction validation
+    predictions = model.predict(X_test)
+    checks.append(("Prediction shape", predictions.shape == y_test.shape))
+    checks.append(("No NaN predictions", not np.isnan(predictions).any()))
+    
+    # Report
+    for check, passed in checks:
+        status = "✓" if passed else "✗"
+        print(f"{status} {check}")
+    
+    return all(passed for _, passed in checks)
+```

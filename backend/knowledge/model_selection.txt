@@ -1,0 +1,423 @@
+# Model Selection
+
+## Overview
+
+Model selection is the process of choosing the best algorithm for your dataset and problem. The right model depends on data size, complexity, interpretability needs, and performance requirements.
+
+## When to Use Each Model
+
+### Linear Regression
+
+**Best for:**
+- Predicting continuous target variables
+- When relationship between features and target is approximately linear
+- When interpretability is important
+- As a baseline model
+
+**Example use cases:**
+- House price prediction
+- Sales forecasting
+- Risk scoring
+- Trend analysis
+
+**Strengths:**
+- Simple and interpretable
+- Fast training and prediction
+- Works well with small datasets
+- Not prone to overfitting
+- Coefficients indicate feature importance
+
+**Weaknesses:**
+- Cannot capture non-linear relationships
+- Sensitive to outliers
+- Requires linear assumption
+- Assumes features are independent
+- May underfit complex data
+
+**Overfitting Risk:** Low
+- Regularization (Ridge/Lasso) can further reduce risk
+- Simple model with few parameters
+
+**Performance Expectations:**
+- R²: 0.3-0.7 for linear relationships
+- May need polynomial features for non-linear data
+
+```python
+from sklearn.linear_model import LinearRegression, Ridge, Lasso
+
+# Basic Linear Regression
+model = LinearRegression()
+model.fit(X_train, y_train)
+predictions = model.predict(X_test)
+
+# Interpret coefficients
+for feature, coef in zip(feature_names, model.coef_):
+    print(f"{feature}: {coef:.4f}")
+```
+
+### Random Forest
+
+**Best for:**
+- Tabular data with complex patterns
+- When feature importance is needed
+- When data has missing values
+- Ensemble of decision trees
+
+**Example use cases:**
+- Customer churn prediction
+- Credit risk assessment
+- Feature importance analysis
+- Multi-class classification
+- Handling mixed feature types
+
+**Strengths:**
+- Handles non-linear relationships
+- Robust to outliers
+- Feature importance built-in
+- Handles missing values
+- Good with high-dimensional data
+- Parallel training
+
+**Weaknesses:**
+- Can overfit on noisy data
+- Biased toward features with more levels
+- Memory intensive
+- Slow prediction on large trees
+- Less interpretable than single tree
+
+**Overfitting Risk:** Medium-High
+- Control with max_depth, min_samples_split, min_samples_leaf
+- n_estimators: more trees = less overfitting (diminishing returns)
+
+**Performance Expectations:**
+- Typically 10-30% better than linear models on complex data
+- Can achieve 0.85-0.95 AUC for classification
+
+```python
+from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier
+
+# Regression
+model = RandomForestRegressor(
+    n_estimators=100,
+    max_depth=10,
+    min_samples_split=5,
+    min_samples_leaf=2,
+    random_state=42
+)
+
+# Feature importance
+importances = model.feature_importances_
+for feature, importance in sorted(zip(feature_names, importances), key=lambda x: -x[1])[:10]:
+    print(f"{feature}: {importance:.4f}")
+```
+
+### XGBoost (Gradient Boosting)
+
+**Best for:**
+- Kaggle-style competitions
+- When best performance is required
+- Structured/tabular data
+- Ranking problems
+
+**Example use cases:**
+- Click-through rate prediction
+- Fraud detection
+- Customer lifetime value
+- Demand forecasting
+- Any high-stakes prediction
+
+**Strengths:**
+- Best-in-class performance on tabular data
+- Handles sparse data efficiently
+- Built-in regularization
+- Automatic handling of missing values
+- Feature importance and selection
+- Cross-validation built-in
+
+**Weaknesses:**
+- Requires careful hyperparameter tuning
+- Computationally intensive
+- Can overfit if not regularized properly
+- Less interpretable than linear models
+- Sensitive to hyperparameters
+
+**Overfitting Risk:** Medium
+- Use learning_rate, max_depth, subsample, colsample_bytree
+- Early stopping prevents overfitting
+
+**Performance Expectations:**
+- State-of-the-art on tabular data
+- Often 5-15% improvement over Random Forest
+- Can achieve 0.90-0.98 AUC depending on task
+
+```python
+# pip install xgboost
+from xgboost import XGBRegressor, XGBClassifier
+
+model = XGBClassifier(
+    n_estimators=200,
+    max_depth=6,
+    learning_rate=0.1,
+    subsample=0.8,
+    colsample_bytree=0.8,
+    reg_alpha=0.1,
+    reg_lambda=1.0,
+    random_state=42,
+    eval_metric='auc'
+)
+
+# Early stopping
+model.fit(
+    X_train, y_train,
+    eval_set=[(X_val, y_val)],
+    early_stopping_rounds=20,
+    verbose=False
+)
+```
+
+## Model Selection Decision Tree
+
+```
+What is your target variable?
+├── Continuous (Regression)
+│   ├── Need interpretability?
+│   │   ├── YES → Linear Regression / Ridge / Lasso
+│   │   └── NO → Continue
+│   ├── Dataset size?
+│   │   ├── Small (<10k) → Random Forest
+│   │   └── Large (≥10k) → XGBoost / LightGBM
+│   └── Performance priority?
+│       ├── High → XGBoost
+│       └── Moderate → Random Forest
+│
+└── Categorical (Classification)
+    ├── Binary classification?
+    │   ├── YES → Logistic Regression / XGBoost / Random Forest
+    │   └── NO → Continue
+    ├── Multi-class?
+    │   ├── YES → Random Forest / XGBoost
+    │   └── Ordinal → Ordinal Regression / Custom encoding
+    └── Class imbalance?
+        ├── YES → XGBoost / SMOTE + classifier
+        └── NO → Any of the above
+```
+
+## Comparison Table
+
+| Aspect | Linear Regression | Random Forest | XGBoost |
+|--------|-------------------|---------------|---------|
+| **Type** | Linear | Non-linear | Non-linear |
+| **Interpretability** | High | Medium | Low-Medium |
+| **Training Speed** | Fast | Medium | Medium-Slow |
+| **Prediction Speed** | Fast | Medium | Fast |
+| **Overfitting Risk** | Low | Medium | Medium |
+| **Handles Outliers** | Poor | Good | Good |
+| **Feature Importance** | Via coefficients | Built-in | Built-in |
+| **Missing Values** | Must handle | Built-in | Built-in |
+| **Memory Usage** | Low | High | Medium |
+| **Non-linear Patterns** | No | Yes | Yes |
+| **Best For** | Baseline, interpretable | General purpose | Best performance |
+
+## Quick Selection Guide
+
+```
+1. Start with baseline: Linear Regression / Logistic Regression
+   - Establishes baseline performance
+   - Reveals if problem is linearly solvable
+
+2. Try Random Forest
+   - Handles non-linearity
+   - Good default performance
+   - Feature importance is valuable
+
+3. Use XGBoost
+   - When you need best performance
+   - When you have enough data
+   - When you can tune hyperparameters
+
+4. Consider ensemble
+   - Stack multiple models
+   - Average predictions
+   - Often beats single model
+```
+
+## Ensemble Methods
+
+### Stacking
+
+```python
+from sklearn.ensemble import StackingRegressor
+
+estimators = [
+    ('lr', LinearRegression()),
+    ('rf', RandomForestRegressor(n_estimators=50, random_state=42)),
+    ('xgb', XGBRegressor(n_estimators=50, random_state=42))
+]
+
+stacking = StackingRegressor(
+    estimators=estimators,
+    final_estimator=Ridge(),
+    cv=5
+)
+
+stacking.fit(X_train, y_train)
+predictions = stacking.predict(X_test)
+```
+
+### Voting
+
+```python
+from sklearn.ensemble import VotingRegressor
+
+voting = VotingRegressor([
+    ('lr', LinearRegression()),
+    ('rf', RandomForestRegressor(n_estimators=50, random_state=42)),
+    ('xgb', XGBRegressor(n_estimators=50, random_state=42))
+])
+
+voting.fit(X_train, y_train)
+predictions = voting.predict(X_test)
+```
+
+## Common Mistakes
+
+### Choosing Based on Popularity
+
+```python
+# BAD: Just using XGBoost because it's popular
+model = XGBClassifier()
+
+# GOOD: Compare models and choose based on your problem
+from sklearn.model_selection import cross_val_score
+
+models = {
+    'LogisticRegression': LogisticRegression(),
+    'RandomForest': RandomForestClassifier(),
+    'XGBoost': XGBClassifier()
+}
+
+for name, model in models.items():
+    scores = cross_val_score(model, X, y, cv=5, scoring='accuracy')
+    print(f"{name}: {scores.mean():.4f} (+/- {scores.std():.4f})")
+```
+
+### Ignoring Baseline
+
+```python
+# BAD: Starting with complex model
+model = XGBClassifier(n_estimators=1000)
+
+# GOOD: Start with simple baseline
+baseline = LinearRegression()
+baseline.fit(X_train, y_train)
+baseline_score = baseline.score(X_test, y_test)
+print(f"Baseline R²: {baseline_score:.4f}")
+```
+
+### Not Considering Interpretability
+
+```python
+# BAD: Using complex model when interpretability is required
+model = XGBClassifier(n_estimators=500, max_depth=10)
+
+# GOOD: Use interpretable model for regulated industries
+model = LogisticRegression()
+
+# If you must use complex model, use SHAP for interpretability
+import shap
+explainer = shap.TreeExplainer(model)
+shap_values = explainer.shap_values(X_test)
+```
+
+## Cross-Validation for Model Selection
+
+```python
+from sklearn.model_selection import cross_val_score, RepeatedKFold
+import numpy as np
+
+models = {
+    'Linear': LinearRegression(),
+    'Ridge': Ridge(alpha=1.0),
+    'Lasso': Lasso(alpha=0.1),
+    'RandomForest': RandomForestRegressor(n_estimators=100, random_state=42),
+    'XGBoost': XGBRegressor(n_estimators=100, random_state=42, verbosity=0)
+}
+
+cv = RepeatedKFold(n_splits=5, n_repeats=3, random_state=42)
+results = {}
+
+for name, model in models.items():
+    scores = cross_val_score(model, X, y, cv=cv, scoring='neg_mean_squared_error')
+    rmse_scores = np.sqrt(-scores)
+    results[name] = {
+        'mean': rmse_scores.mean(),
+        'std': rmse_scores.std()
+    }
+    print(f"{name}: RMSE = {rmse_scores.mean():.4f} (+/- {rmse_scores.std():.4f})")
+
+best_model = min(results, key=lambda x: results[x]['mean'])
+print(f"\nBest model: {best_model}")
+```
+
+## Time-Based Split (for Time Series)
+
+```python
+# BAD: Random split for time series
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
+
+# GOOD: Time-based split
+train_size = int(len(X) * 0.8)
+X_train, X_test = X[:train_size], X[train_size:]
+y_train, y_test = y[:train_size], y[train_size:]
+
+# Or use TimeSeriesSplit
+from sklearn.model_selection import TimeSeriesSplit
+
+tscv = TimeSeriesSplit(n_splits=5)
+for train_idx, test_idx in tscv.split(X):
+    X_train, X_test = X[train_idx], X[test_idx]
+    y_train, y_test = y[train_idx], y[test_idx]
+```
+
+## Hyperparameter Quick Reference
+
+### Linear Regression
+
+| Parameter | Default | Range | Effect |
+|-----------|---------|-------|--------|
+| fit_intercept | True | True/False | Add intercept term |
+| normalize | False | True/False | Scale features |
+
+### Ridge Regression
+
+| Parameter | Default | Range | Effect |
+|-----------|---------|-------|--------|
+| alpha | 1.0 | 0.001-1000 | Regularization strength |
+
+### Lasso Regression
+
+| Parameter | Default | Range | Effect |
+|-----------|---------|-------|--------|
+| alpha | 1.0 | 0.001-1000 | Regularization strength |
+
+### Random Forest
+
+| Parameter | Default | Range | Effect |
+|-----------|---------|-------|--------|
+| n_estimators | 100 | 50-500 | Number of trees |
+| max_depth | None | 5-30 | Tree depth |
+| min_samples_split | 2 | 2-20 | Min samples to split |
+| min_samples_leaf | 1 | 1-10 | Min samples in leaf |
+| max_features | sqrt | sqrt/log2/None | Features per split |
+
+### XGBoost
+
+| Parameter | Default | Range | Effect |
+|-----------|---------|-------|--------|
+| n_estimators | 100 | 100-1000 | Number of rounds |
+| max_depth | 6 | 3-10 | Tree depth |
+| learning_rate | 0.1 | 0.01-0.3 | Step size |
+| subsample | 1.0 | 0.6-1.0 | Row sampling |
+| colsample_bytree | 1.0 | 0.6-1.0 | Column sampling |
+| reg_alpha | 0 | 0-1 | L1 regularization |
+| reg_lambda | 1 | 0-10 | L2 regularization |

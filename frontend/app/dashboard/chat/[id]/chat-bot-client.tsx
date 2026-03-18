@@ -1,8 +1,11 @@
 "use client";
 
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import rehypeHighlight from "rehype-highlight";
 import { ArrowUpIcon, Bot, Plus, User } from "lucide-react";
 import { useParams } from "next/navigation";
-import { type JSX, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,6 +21,7 @@ import {
 } from "@/components/shadcn-ui/input-group";
 import { Separator } from "@/components/shadcn-ui/separator";
 import { authenticatedJsonFetch } from "@/lib/api-client";
+import { ScrollArea } from "@/components/shadcn-ui/scroll-area";
 
 type BackendMessage = {
   message_id: string;
@@ -153,58 +157,71 @@ export default function ChatBotClient({ chatId }: { chatId?: string }) {
     }
   };
 
-  function renderMessageContent(content: string) {
-    const sqlRegex = /```sql([\s\S]*?)```/g;
-    const parts: (string | JSX.Element)[] = [];
+  function CodeBlock({ children, className }: { children: string; className?: string }) {
+    const language = className?.replace("language-", "") || "text";
+    const isInline = !className;
 
-    let lastIndex = 0;
-    let match: RegExpExecArray | null;
-
-    while (true) {
-      match = sqlRegex.exec(content);
-      if (!match) {
-        break;
-      }
-
-      const [_, sqlCode] = match;
-      const startIndex = match.index;
-
-      if (startIndex > lastIndex) {
-        parts.push(content.slice(lastIndex, startIndex));
-      }
-
-      parts.push(
-        <div
-          key={startIndex}
-          className="bg-muted/40 text-foreground/90 relative my-3 w-full rounded-lg border p-4 font-mono text-sm"
-        >
-          <button
-            type="button"
-            onClick={() => navigator.clipboard.writeText(sqlCode.trim())}
-            className="bg-muted text-foreground/70 hover:bg-muted-foreground/10 absolute top-2 right-2 rounded-md px-2 py-1 text-xs transition-colors"
-          >
-            Copy
-          </button>
-          <pre className="overflow-x-auto whitespace-pre-wrap">
-            {sqlCode.trim()}
-          </pre>
-        </div>,
+    if (isInline) {
+      return (
+        <code className="bg-muted rounded px-1 py-0.5 font-mono text-sm">
+          {children}
+        </code>
       );
-
-      lastIndex = sqlRegex.lastIndex;
     }
 
-    if (lastIndex < content.length) {
-      parts.push(content.slice(lastIndex));
-    }
+    return (
+      <div className="bg-muted/40 text-foreground/90 relative my-3 w-full rounded-lg border p-4 font-mono text-sm">
+        <button
+          type="button"
+          onClick={() => navigator.clipboard.writeText(children)}
+          className="bg-muted text-foreground/70 hover:bg-muted-foreground/10 absolute top-2 right-2 rounded-md px-2 py-1 text-xs transition-colors"
+        >
+          Copy
+        </button>
+        {language && language !== "text" && (
+          <div className="absolute top-2 left-2 text-xs text-foreground/50 uppercase">
+            {language}
+          </div>
+        )}
+        <pre className={`overflow-x-auto whitespace-pre-wrap ${language && language !== "text" ? "pt-6" : ""}`}>
+          {children}
+        </pre>
+      </div>
+    );
+  }
 
-    return parts.length ? parts : content;
+  function renderMessageContent(content: string) {
+    return (
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        rehypePlugins={[rehypeHighlight]}
+        components={{
+          code({ className, children, ...props }) {
+            const isInline = !className;
+            if (isInline) {
+              return (
+                <code className="bg-muted rounded px-1 py-0.5 font-mono text-sm" {...props}>
+                  {children}
+                </code>
+              );
+            }
+            return (
+              <CodeBlock className={className}>
+                {String(children).replace(/\n$/, "")}
+              </CodeBlock>
+            );
+          },
+        }}
+      >
+        {content}
+      </ReactMarkdown>
+    );
   }
 
   return (
     <div className="bg-background flex h-screen flex-col">
-      <div className="flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-4xl px-4 py-6">
+      <div className="flex-1 flex flex-col min-h-0">
+        <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col px-4 py-6">
           {!isResolving && messages.length === 0 && (
             <div className="flex h-64 items-center justify-center text-center">
               <div className="max-w-md space-y-4">
@@ -219,81 +236,82 @@ export default function ChatBotClient({ chatId }: { chatId?: string }) {
               </div>
             </div>
           )}
-
-          <div className="space-y-6">
-            {messages.map((msg) => (
-              <div
-                key={msg.id}
-                className={`flex gap-4 ${
-                  msg.role === "user" ? "flex-row-reverse" : "flex-row"
-                }`}
-              >
+          <ScrollArea className="flex-1 min-h-0">
+            <div className="space-y-6 pb-4">
+              {messages.map((msg) => (
                 <div
-                  className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
-                    msg.role === "user"
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted"
-                  }`}
-                >
-                  {msg.role === "user" ? (
-                    <User className="h-4 w-4" />
-                  ) : (
-                    <Bot className="h-4 w-4" />
-                  )}
-                </div>
-
-                <div
-                  className={`flex max-w-[80%] flex-col gap-2 ${
-                    msg.role === "user" ? "items-end" : "items-start"
+                  key={msg.id}
+                  className={`flex gap-4 ${
+                    msg.role === "user" ? "flex-row-reverse" : "flex-row"
                   }`}
                 >
                   <div
-                    className={`rounded-2xl px-4 py-3 ${
+                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
                       msg.role === "user"
                         ? "bg-primary text-primary-foreground"
                         : "bg-muted"
                     }`}
                   >
-                    <div className="wrap-break-word whitespace-pre-wrap">
-                      {renderMessageContent(msg.content)}
-                    </div>
+                    {msg.role === "user" ? (
+                      <User className="h-4 w-4" />
+                    ) : (
+                      <Bot className="h-4 w-4" />
+                    )}
                   </div>
-                </div>
-              </div>
-            ))}
 
-            {(isPending || isResolving) && (
-              <div className="flex gap-4">
-                <div className="bg-muted flex h-8 w-8 shrink-0 items-center justify-center rounded-full">
-                  <Bot className="h-4 w-4" />
-                </div>
-                <div className="flex max-w-[80%] flex-col gap-2">
-                  <div className="bg-muted rounded-2xl px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <div className="flex space-x-1">
-                        <div className="h-2 w-2 animate-bounce rounded-full bg-current"></div>
-                        <div
-                          className="h-2 w-2 animate-bounce rounded-full bg-current"
-                          style={{ animationDelay: "0.1s" }}
-                        ></div>
-                        <div
-                          className="h-2 w-2 animate-bounce rounded-full bg-current"
-                          style={{ animationDelay: "0.2s" }}
-                        ></div>
+                  <div
+                    className={`flex max-w-[80%] flex-col gap-2 ${
+                      msg.role === "user" ? "items-end" : "items-start"
+                    }`}
+                  >
+                    <div
+                      className={`rounded-2xl px-4 py-3 ${
+                        msg.role === "user"
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-muted prose prose-sm dark:prose-invert max-w-none"
+                      }`}
+                    >
+                      <div className="break-words">
+                        {renderMessageContent(msg.content)}
                       </div>
-                      <span className="text-sm">
-                        {isResolving
-                          ? "Loading chat..."
-                          : "Generating response..."}
-                      </span>
                     </div>
                   </div>
                 </div>
-              </div>
-            )}
+              ))}
 
-            <div ref={messagesEndRef} />
-          </div>
+              {(isPending || isResolving) && (
+                <div className="flex gap-4">
+                  <div className="bg-muted flex h-8 w-8 shrink-0 items-center justify-center rounded-full">
+                    <Bot className="h-4 w-4" />
+                  </div>
+                  <div className="flex max-w-[80%] flex-col gap-2">
+                    <div className="bg-muted rounded-2xl px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <div className="flex space-x-1">
+                          <div className="h-2 w-2 animate-bounce rounded-full bg-current"></div>
+                          <div
+                            className="h-2 w-2 animate-bounce rounded-full bg-current"
+                            style={{ animationDelay: "0.1s" }}
+                          ></div>
+                          <div
+                            className="h-2 w-2 animate-bounce rounded-full bg-current"
+                            style={{ animationDelay: "0.2s" }}
+                          ></div>
+                        </div>
+                        <span className="text-sm">
+                          {isResolving
+                            ? "Loading chat..."
+                            : "Generating response..."}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div ref={messagesEndRef} />
+            </div>
+          </ScrollArea>
         </div>
       </div>
 

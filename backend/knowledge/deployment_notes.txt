@@ -1,0 +1,737 @@
+# Deployment Notes
+
+## Overview
+
+Deploying ML models involves saving trained models, creating APIs for predictions, and monitoring their performance in production.
+
+## Saving and Loading Models
+
+### Pickle
+
+```python
+import pickle
+
+# Save model
+with open('model.pkl', 'wb') as f:
+    pickle.dump(model, f)
+
+# Load model
+with open('model.pkl', 'rb') as f:
+    loaded_model = pickle.load(f)
+
+# Use loaded model
+predictions = loaded_model.predict(X_new)
+```
+
+### Joblib (Recommended for Large Models)
+
+```python
+import joblib
+
+# Save model
+joblib.dump(model, 'model.joblib')
+
+# Load model
+loaded_model = joblib.load('model.joblib')
+
+# Use loaded model
+predictions = loaded_model.predict(X_new)
+```
+
+**When to use joblib:**
+- Large numpy arrays
+- sklearn models with complex internal state
+- Faster loading for large models
+
+**When to use pickle:**
+- Simple Python objects
+- Custom classes
+- When compatibility is needed
+
+### Saving with Pipeline
+
+```python
+from sklearn.pipeline import Pipeline
+import joblib
+
+# Create and train pipeline
+pipeline = Pipeline([
+    ('preprocessor', preprocessor),
+    ('model', RandomForestRegressor())
+])
+
+pipeline.fit(X_train, y_train)
+
+# Save entire pipeline
+joblib.dump(pipeline, 'pipeline.joblib')
+
+# Load and use
+pipeline = joblib.load('pipeline.joblib')
+predictions = pipeline.predict(X_new)
+
+# Pipeline handles preprocessing automatically!
+```
+
+### Versioning Models
+
+```python
+import os
+from datetime import datetime
+
+def save_model_with_version(model, model_dir='models'):
+    """Save model with timestamp version."""
+    os.makedirs(model_dir, exist_ok=True)
+    
+    version = datetime.now().strftime('%Y%m%d_%H%M%S')
+    model_path = os.path.join(model_dir, f'model_{version}.joblib')
+    
+    joblib.dump(model, model_path)
+    
+    # Save metadata
+    metadata = {
+        'version': version,
+        'path': model_path,
+        'timestamp': datetime.now().isoformat(),
+        'model_type': type(model).__name__
+    }
+    
+    import json
+    meta_path = os.path.join(model_dir, f'metadata_{version}.json')
+    with open(meta_path, 'w') as f:
+        json.dump(metadata, f, indent=2)
+    
+    print(f"Model saved: {model_path}")
+    return version
+
+# Save multiple versions
+version1 = save_model_with_version(model_v1)
+version2 = save_model_with_version(model_v2)
+
+# Load specific version
+def load_model_version(version, model_dir='models'):
+    model_path = os.path.join(model_dir, f'model_{version}.joblib')
+    return joblib.load(model_path)
+```
+
+## FastAPI Service
+
+### Basic API
+
+```python
+# app.py
+from fastapi import FastAPI
+from pydantic import BaseModel
+import joblib
+import numpy as np
+
+app = FastAPI(title="ML Prediction API")
+
+# Load model at startup
+model = joblib.load('models/model_v1.joblib')
+
+class PredictionRequest(BaseModel):
+    features: list[float]
+
+class PredictionResponse(BaseModel):
+    prediction: float
+    model_version: str
+
+@app.post("/predict", response_model=PredictionResponse)
+async def predict(request: PredictionRequest):
+    """Make prediction from features."""
+    X = np.array(request.features).reshape(1, -1)
+    prediction = model.predict(X)[0]
+    
+    return PredictionResponse(
+        prediction=float(prediction),
+        model_version="v1.0.0"
+    )
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint."""
+    return {"status": "healthy"}
+
+# Run with: uvicorn app:app --reload
+```
+
+### API with Multiple Models
+
+```python
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+import joblib
+from typing import Optional
+
+app = FastAPI(title="Multi-Model Prediction API")
+
+# Load models
+models = {
+    'v1': joblib.load('models/model_v1.joblib'),
+    'v2': joblib.load('models/model_v2.joblib'),
+}
+
+active_model = models['v2']
+
+class PredictionRequest(BaseModel):
+    features: list[float]
+    model_version: Optional[str] = None
+
+@app.post("/predict")
+async def predict(request: PredictionRequest):
+    """Make prediction."""
+    model = models.get(request.model_version, active_model)
+    
+    import numpy as np
+    X = np.array(request.features).reshape(1, -1)
+    prediction = model.predict(X)[0]
+    
+    return {
+        "prediction": float(prediction),
+        "model_version": request.model_version or "active",
+    }
+
+@app.post("/predict_batch")
+async def predict_batch(request: PredictionRequest):
+    """Make batch predictions."""
+    import numpy as np
+    
+    X = np.array(request.features)
+    predictions = active_model.predict(X)
+    
+    return {
+        "predictions": predictions.tolist(),
+        "count": len(predictions),
+    }
+```
+
+### Complete FastAPI Application
+
+```python
+# main.py
+from fastapi import FastAPI, UploadFile, File
+from fastapi.responses import JSONResponse
+import pandas as pd
+import joblib
+from io import BytesIO
+
+app = FastAPI(title="ML Prediction API")
+
+# Global model
+model = None
+
+@app.on_event("startup")
+async def load_model():
+    """Load model on startup."""
+    global model
+    model = joblib.load('models/pipeline.joblib')
+    print("Model loaded successfully")
+
+@app.post("/predict_single")
+async def predict_single(data: dict):
+    """Single prediction endpoint."""
+    features = data.get('features', [])
+    prediction = model.predict([features])[0]
+    return {"prediction": float(prediction)}
+
+@app.post("/predict_csv")
+async def predict_csv(file: UploadFile = File(...)):
+    """Predict from CSV file."""
+    contents = await file.read()
+    df = pd.read_csv(BytesIO(contents))
+    
+    predictions = model.predict(df)
+    
+    return JSONResponse({
+        "predictions": predictions.tolist(),
+        "count": len(predictions),
+        "mean_prediction": float(predictions.mean()),
+    })
+
+@app.get("/model_info")
+async def model_info():
+    """Get model information."""
+    return {
+        "model_type": type(model.named_steps['model']).__name__,
+        "features": list(model.feature_names_in_) if hasattr(model, 'feature_names_in_') else "N/A",
+        "n_features": model.n_features_in_ if hasattr(model, 'n_features_in_') else "N/A",
+    }
+
+@app.get("/health")
+async def health():
+    """Health check."""
+    return {"status": "healthy", "model_loaded": model is not None}
+
+# Run: uvicorn main:app --host 0.0.0.0 --port 8000
+```
+
+## Model Monitoring
+
+### Basic Metrics Tracking
+
+```python
+import logging
+from datetime import datetime
+import pandas as pd
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+class ModelMonitor:
+    def __init__(self):
+        self.predictions = []
+        self.actuals = []
+        self.timestamps = []
+    
+    def log_prediction(self, features, prediction, timestamp=None):
+        """Log a prediction."""
+        self.predictions.append(prediction)
+        self.timestamps.append(timestamp or datetime.now())
+    
+    def log_actual(self, actual):
+        """Log the actual value (for labeled data)."""
+        self.actuals.append(actual)
+    
+    def calculate_metrics(self):
+        """Calculate monitoring metrics."""
+        if len(self.predictions) == 0:
+            return {}
+        
+        metrics = {
+            'total_predictions': len(self.predictions),
+            'mean_prediction': float(pd.Series(self.predictions).mean()),
+            'std_prediction': float(pd.Series(self.predictions).std()),
+            'min_prediction': float(pd.Series(self.predictions).min()),
+            'max_prediction': float(pd.Series(self.predictions).max()),
+        }
+        
+        if len(self.actuals) > 0:
+            errors = [p - a for p, a in zip(self.predictions, self.actuals)]
+            metrics['mae'] = float(pd.Series(errors).abs().mean())
+            metrics['mse'] = float(pd.Series([e**2 for e in errors]).mean())
+        
+        return metrics
+    
+    def generate_report(self):
+        """Generate monitoring report."""
+        metrics = self.calculate_metrics()
+        logger.info(f"Monitoring Report: {metrics}")
+        return metrics
+
+# Usage
+monitor = ModelMonitor()
+
+# Log predictions
+monitor.log_prediction([1, 2, 3], prediction=100.5)
+monitor.log_prediction([4, 5, 6], prediction=150.2)
+
+# Log actuals when available
+monitor.log_actual(102.0)
+monitor.log_actual(148.0)
+
+# Generate report
+report = monitor.generate_report()
+```
+
+### Data Drift Detection
+
+```python
+import numpy as np
+from scipy.stats import ks_2samp, chi2_contingency
+import pandas as pd
+
+class DriftDetector:
+    def __init__(self, reference_data):
+        self.reference_data = reference_data
+        self.reference_stats = self._compute_stats(reference_data)
+    
+    def _compute_stats(self, data):
+        """Compute reference statistics."""
+        stats = {}
+        for col in data.columns:
+            if pd.api.types.is_numeric_dtype(data[col]):
+                stats[col] = {
+                    'mean': data[col].mean(),
+                    'std': data[col].std(),
+                    'q25': data[col].quantile(0.25),
+                    'q50': data[col].quantile(0.50),
+                    'q75': data[col].quantile(0.75),
+                }
+            else:
+                stats[col] = {
+                    'distribution': data[col].value_counts(normalize=True).to_dict()
+                }
+        return stats
+    
+    def detect_drift(self, new_data, threshold=0.05):
+        """Detect drift between reference and new data."""
+        drift_report = {
+            'timestamp': pd.Timestamp.now(),
+            'drifted_features': [],
+            'drift_scores': {}
+        }
+        
+        for col in new_data.columns:
+            if col not in self.reference_stats:
+                continue
+            
+            if pd.api.types.is_numeric_dtype(new_data[col]):
+                # KS test for numeric
+                statistic, p_value = ks_2samp(
+                    self.reference_data[col].dropna(),
+                    new_data[col].dropna()
+                )
+                drift_report['drift_scores'][col] = {
+                    'statistic': float(statistic),
+                    'p_value': float(p_value),
+                    'drifted': p_value < threshold
+                }
+                
+                if p_value < threshold:
+                    drift_report['drifted_features'].append(col)
+            else:
+                # Chi-square for categorical
+                try:
+                    ref_dist = self.reference_stats[col]['distribution']
+                    new_dist = new_data[col].value_counts(normalize=True)
+                    
+                    # Combine all categories
+                    all_cats = set(ref_dist.keys()) | set(new_dist.index)
+                    ref_vals = [ref_dist.get(c, 0) for c in all_cats]
+                    new_vals = [new_dist.get(c, 0) for c in all_cats]
+                    
+                    contingency = np.array([ref_vals, new_vals])
+                    chi2, p_value, _, _ = chi2_contingency(contingency)
+                    
+                    drift_report['drift_scores'][col] = {
+                        'chi2': float(chi2),
+                        'p_value': float(p_value),
+                        'drifted': p_value < threshold
+                    }
+                    
+                    if p_value < threshold:
+                        drift_report['drifted_features'].append(col)
+                except:
+                    pass
+        
+        return drift_report
+
+# Usage
+detector = DriftDetector(X_train)
+
+# Check new data
+new_data = X_new  # New batch of data
+drift_report = detector.detect_drift(new_data, threshold=0.05)
+
+if drift_report['drifted_features']:
+    print(f"⚠️ Drift detected in: {drift_report['drifted_features']}")
+    # Alert team or trigger retraining
+```
+
+### Performance Tracking
+
+```python
+import json
+from datetime import datetime
+import os
+
+class PerformanceTracker:
+    def __init__(self, log_dir='logs'):
+        self.log_dir = log_dir
+        os.makedirs(log_dir, exist_ok=True)
+        self.current_metrics = {}
+    
+    def log_prediction(self, features, prediction, model_version='v1'):
+        """Log prediction details."""
+        entry = {
+            'timestamp': datetime.now().isoformat(),
+            'model_version': model_version,
+            'n_features': len(features) if isinstance(features, list) else features.shape[0],
+            'prediction': float(prediction) if hasattr(prediction, '__float__') else float(prediction)
+        }
+        
+        log_file = os.path.join(self.log_dir, f'predictions_{datetime.now().strftime("%Y%m%d")}.jsonl')
+        
+        with open(log_file, 'a') as f:
+            f.write(json.dumps(entry) + '\n')
+    
+    def log_evaluation(self, y_true, y_pred, model_version='v1'):
+        """Log evaluation metrics."""
+        from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+        
+        metrics = {
+            'timestamp': datetime.now().isoformat(),
+            'model_version': model_version,
+            'n_samples': len(y_true),
+            'rmse': float(mean_squared_error(y_true, y_pred) ** 0.5),
+            'mae': float(mean_absolute_error(y_true, y_pred)),
+            'r2': float(r2_score(y_true, y_pred))
+        }
+        
+        log_file = os.path.join(self.log_dir, 'evaluations.jsonl')
+        
+        with open(log_file, 'a') as f:
+            f.write(json.dumps(metrics) + '\n')
+        
+        self.current_metrics = metrics
+        return metrics
+    
+    def get_recent_performance(self, n_days=7):
+        """Get performance metrics for recent period."""
+        evaluations = []
+        
+        for i in range(n_days):
+            date = datetime.now() - pd.Timedelta(days=i)
+            log_file = os.path.join(self.log_dir, f'predictions_{date.strftime("%Y%m%d")}.jsonl')
+            
+            if os.path.exists(log_file):
+                with open(log_file, 'r') as f:
+                    for line in f:
+                        evaluations.append(json.loads(line))
+        
+        return pd.DataFrame(evaluations)
+
+# Usage
+tracker = PerformanceTracker()
+
+# Track predictions
+tracker.log_prediction(features=[1, 2, 3], prediction=100.5, model_version='v1')
+
+# Track evaluation
+tracker.log_evaluation(y_test, y_pred, model_version='v1')
+```
+
+## Logging Best Practices
+
+### Structured Logging
+
+```python
+import logging
+import json
+from datetime import datetime
+
+class StructuredLogger:
+    def __init__(self, name, log_file='logs/app.log'):
+        self.logger = logging.getLogger(name)
+        self.logger.setLevel(logging.INFO)
+        
+        # File handler
+        handler = logging.FileHandler(log_file)
+        handler.setFormatter(logging.Formatter('%(message)s'))
+        self.logger.addHandler(handler)
+    
+    def log(self, event_type, **kwargs):
+        """Log structured event."""
+        entry = {
+            'timestamp': datetime.now().isoformat(),
+            'event_type': event_type,
+            **kwargs
+        }
+        self.logger.info(json.dumps(entry))
+
+# Usage
+logger = StructuredLogger('ml_pipeline')
+
+logger.log('model_training_started', model_type='RandomForest', n_features=10)
+logger.log('model_trained', duration_seconds=45.2, train_accuracy=0.95)
+logger.log('prediction_made', features_shape=[1, 10], prediction=42.5)
+logger.log('drift_detected', features=['age', 'income'], severity='high')
+```
+
+### Request Logging for API
+
+```python
+from fastapi import Request
+import time
+import logging
+
+logger = logging.getLogger('api')
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    """Log all API requests."""
+    start_time = time.time()
+    
+    # Process request
+    response = await call_next(request)
+    
+    # Log details
+    duration = time.time() - start_time
+    
+    logger.info(json.dumps({
+        'timestamp': datetime.now().isoformat(),
+        'method': request.method,
+        'path': request.url.path,
+        'status_code': response.status_code,
+        'duration_ms': round(duration * 1000, 2),
+        'client': request.client.host if request.client else None
+    }))
+    
+    return response
+```
+
+## Containerization (Docker)
+
+### Dockerfile
+
+```dockerfile
+FROM python:3.10-slim
+
+WORKDIR /app
+
+# Install dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy model
+COPY models/ ./models/
+
+# Copy application
+COPY app/ ./app/
+
+# Expose port
+EXPOSE 8000
+
+# Run API
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+```
+
+### requirements.txt
+
+```
+fastapi==0.104.1
+uvicorn==0.24.0
+scikit-learn==1.3.2
+joblib==1.3.2
+pandas==2.1.3
+numpy==1.26.2
+pydantic==2.5.0
+python-multipart==0.0.6
+```
+
+## Complete Deployment Checklist
+
+```python
+DEPLOYMENT_CHECKLIST = {
+    'model_preparation': [
+        '✓ Train final model on full dataset',
+        '✓ Save model with joblib/pickle',
+        '✓ Save preprocessing pipeline',
+        '✓ Document model version',
+        '✓ Store model in secure location',
+    ],
+    'testing': [
+        '✓ Unit tests pass',
+        '✓ Integration tests pass',
+        '✓ Load model successfully',
+        '✓ Predictions match expected format',
+        '✓ Handle edge cases (missing values, unseen categories)',
+    ],
+    'api_development': [
+        '✓ Create FastAPI app',
+        '✓ Implement prediction endpoint',
+        '✓ Implement health check',
+        '✓ Add input validation',
+        '✓ Add error handling',
+        '✓ Add request logging',
+    ],
+    'monitoring': [
+        '✓ Set up prediction logging',
+        '✓ Set up performance tracking',
+        '✓ Configure drift detection',
+        '✓ Set up alerts',
+        '✓ Create dashboard',
+    ],
+    'deployment': [
+        '✓ Create Docker image',
+        '✓ Test Docker container',
+        '✓ Deploy to production',
+        '✓ Configure environment variables',
+        '✓ Set up HTTPS',
+        '✓ Configure CORS if needed',
+    ],
+    'post_deployment': [
+        '✓ Verify predictions in production',
+        '✓ Monitor error rates',
+        '✓ Monitor latency',
+        '✓ Schedule retraining',
+        '✓ Document runbook',
+    ]
+}
+```
+
+## Error Handling
+
+```python
+from fastapi import HTTPException
+import numpy as np
+
+@app.post("/predict")
+async def predict(request: PredictionRequest):
+    try:
+        # Validate input
+        if len(request.features) != expected_n_features:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Expected {expected_n_features} features, got {len(request.features)}"
+            )
+        
+        # Convert to numpy
+        X = np.array(request.features).reshape(1, -1)
+        
+        # Check for NaN/Inf
+        if not np.isfinite(X).all():
+            raise HTTPException(
+                status_code=400,
+                detail="Input contains NaN or Inf values"
+            )
+        
+        # Make prediction
+        prediction = model.predict(X)[0]
+        
+        return {"prediction": float(prediction)}
+    
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    
+    except Exception as e:
+        # Log unexpected errors
+        logger.error(f"Prediction error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+```
+
+## Performance Optimization
+
+```python
+# 1. Batch predictions for efficiency
+@app.post("/predict_batch")
+async def predict_batch(request: BatchPredictionRequest):
+    predictions = []
+    batch_size = 1000
+    
+    for i in range(0, len(request.features), batch_size):
+        batch = np.array(request.features[i:i+batch_size])
+        batch_preds = model.predict(batch)
+        predictions.extend(batch_preds.tolist())
+    
+    return {"predictions": predictions}
+
+# 2. Use ONNX for faster inference
+# pip install skl2onnx onnxruntime
+
+from skl2onnx import convert_sklearn
+from skl2onnx.common.data_types import FloatTensorType
+
+initial_type = [('float_input', FloatTensorType([None, 4]))]
+onx = convert_sklearn(model, initial_types=initial_type)
+
+with open("model.onnx", "wb") as f:
+    f.write(onx.SerializeToString())
+
+# 3. Cache frequently accessed data
+from functools import lru_cache
+
+@lru_cache(maxsize=1000)
+def get_model_predictions(features):
+    return model.predict([features])
+```

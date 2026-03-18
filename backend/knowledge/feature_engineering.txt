@@ -1,0 +1,735 @@
+# Feature Engineering
+
+## Overview
+
+Feature engineering transforms raw data into features that better represent the underlying problem, improving model performance. It's often the difference between a good and a great model.
+
+## Encoding Categorical Variables
+
+### Label Encoding
+
+Convert categorical labels to numeric values.
+
+**When to use:**
+- Ordinal categories (Low, Medium, High)
+- Tree-based models (Random Forest, XGBoost)
+- High-cardinality categories
+
+**When NOT to use:**
+- Nominal categories with linear models (imposes false ordinal relationship)
+
+```python
+from sklearn.preprocessing import LabelEncoder
+
+# Simple label encoding
+le = LabelEncoder()
+df['category_encoded'] = le.fit_transform(df['category'])
+
+print("Mapping:")
+for i, label in enumerate(le.classes_):
+    print(f"  {label} -> {i}")
+```
+
+**Before → After transformation:**
+
+```
+BEFORE (category column):
+┌──────────┐
+│ category │
+├──────────┤
+│ Low      │
+│ Medium   │
+│ High     │
+│ Low      │
+│ High     │
+└──────────┘
+
+AFTER (encoded column):
+┌──────────┬──────────────────┐
+│ category │ category_encoded │
+├──────────┼──────────────────┤
+│ Low      │ 0                │
+│ Medium   │ 1                │
+│ High     │ 2                │
+│ Low      │ 0                │
+│ High     │ 2                │
+└──────────┴──────────────────┘
+```
+
+**Ordinal encoding for ordered categories:**
+
+```python
+# Define custom mapping for ordinal data
+ordinal_mapping = {
+    'Low': 0,
+    'Medium': 1,
+    'High': 2
+}
+
+df['priority_encoded'] = df['category'].map(ordinal_mapping)
+
+# Or use sklearn's OrdinalEncoder
+from sklearn.preprocessing import OrdinalEncoder
+
+categories = [['Low', 'Medium', 'High']]
+encoder = OrdinalEncoder(categories=categories)
+df['priority_encoded'] = encoder.fit_transform(df[['category']])
+```
+
+### One-Hot Encoding
+
+Creates binary columns for each category.
+
+**When to use:**
+- Nominal categories (no inherent order)
+- Low-cardinality categories (< 10-15 unique values)
+- Linear models, Neural Networks
+
+**When NOT to use:**
+- High-cardinality categories (creates too many columns)
+- Tree-based models (can cause overfitting)
+
+```python
+# Using pandas
+df_encoded = pd.get_dummies(df, columns=['category'], prefix='cat')
+
+print(df_encoded.head())
+```
+
+**Before → After transformation:**
+
+```
+BEFORE:
+┌──────────┬─────────┐
+│ category │ feature │
+├──────────┼─────────┤
+│ A        │ 1.5     │
+│ B        │ 2.3     │
+│ A        │ 1.8     │
+│ C        │ 3.1     │
+└──────────┴─────────┘
+
+AFTER (one-hot encoding):
+┌─────────┬───────┬───────┬───────┐
+│ feature │ cat_A │ cat_B │ cat_C │
+├─────────┼───────┼───────┼───────┤
+│ 1.5     │ 1     │ 0     │ 0     │
+│ 2.3     │ 0     │ 1     │ 0     │
+│ 1.8     │ 1     │ 0     │ 0     │
+│ 3.1     │ 0     │ 0     │ 1     │
+└─────────┴───────┴───────┴───────┘
+```
+
+**Using sklearn:**
+
+```python
+from sklearn.preprocessing import OneHotEncoder
+
+ohe = OneHotEncoder(sparse_output=False, drop='first')  # drop='first' avoids multicollinearity
+encoded = ohe.fit_transform(df[['category']])
+
+# Create DataFrame with proper column names
+feature_names = ohe.get_feature_names_out(['category'])
+df_encoded = pd.DataFrame(encoded, columns=feature_names, index=df.index)
+
+# Combine with original DataFrame
+df = pd.concat([df, df_encoded], axis=1)
+```
+
+### Target Encoding
+
+Encodes categories using the mean of the target variable.
+
+**When to use:**
+- High-cardinality categories
+- When category matters for prediction
+
+**⚠️ Warning:** Can cause overfitting. Always use cross-validation or leave-one-out.
+
+```python
+# Manual target encoding with smoothing
+def target_encode(train_df, test_df, col, target, alpha=5):
+    """
+    Target encoding with smoothing.
+    
+    alpha: smoothing factor (higher = more regularization)
+    """
+    global_mean = train_df[target].mean()
+    
+    # Calculate means per category
+    agg = train_df.groupby(col)[target].agg(['mean', 'count'])
+    
+    # Smoothed mean
+    smoothed = (agg['mean'] * agg['count'] + global_mean * alpha) / (agg['count'] + alpha)
+    
+    # Apply to train and test
+    train_encoded = train_df[col].map(smoothed)
+    test_encoded = test_df[col].map(smoothed).fillna(global_mean)
+    
+    return train_encoded, test_encoded
+
+# Usage
+df_train['category_encoded'], df_test['category_encoded'] = target_encode(
+    df_train, df_test, 'category', 'target'
+)
+```
+
+### Frequency Encoding
+
+Encode categories by their frequency/count.
+
+```python
+# Frequency encoding
+frequency = df['category'].value_counts(normalize=True)
+df['category_freq'] = df['category'].map(frequency)
+
+# Count encoding
+counts = df['category'].value_counts()
+df['category_count'] = df['category'].map(counts)
+
+print("Frequency encoding:")
+print(df[['category', 'category_freq', 'category_count']].drop_duplicates())
+```
+
+## Feature Scaling
+
+### StandardScaler (Z-score normalization)
+
+Transforms features to have mean=0 and std=1.
+
+```python
+from sklearn.preprocessing import StandardScaler
+
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X)
+
+print(f"Mean: {X_scaled.mean(axis=0).round(6)}")  # ~0
+print(f"Std: {X_scaled.std(axis=0).round(6)}")   # ~1
+```
+
+**Formula:**
+```
+z = (x - μ) / σ
+```
+
+**When to use:**
+- Linear regression, Logistic regression
+- Neural Networks
+- PCA, Clustering
+- Distance-based algorithms (KNN, SVM)
+
+### MinMaxScaler
+
+Scales features to a given range (default 0-1).
+
+```python
+from sklearn.preprocessing import MinMaxScaler
+
+scaler = MinMaxScaler()
+X_scaled = scaler.fit_transform(X)
+
+print(f"Min: {X_scaled.min(axis=0)}")  # ~0
+print(f"Max: {X_scaled.max(axis=0)}")  # ~1
+```
+
+**Formula:**
+```
+x_scaled = (x - x_min) / (x_max - x_min)
+```
+
+**When to use:**
+- Image data (pixel values 0-255)
+- When you need bounded output
+- Neural Networks with sigmoid/tanh activations
+
+### RobustScaler
+
+Uses median and IQR, robust to outliers.
+
+```python
+from sklearn.preprocessing import RobustScaler
+
+scaler = RobustScaler()
+X_scaled = scaler.fit_transform(X)
+```
+
+**Formula:**
+```
+x_scaled = (x - median) / IQR
+```
+
+**When to use:**
+- Data with outliers
+- When you don't want outliers to affect scaling
+
+### Comparison Table
+
+| Scaler | Formula | Range | Outliers | Use Cases |
+|--------|---------|-------|----------|-----------|
+| StandardScaler | (x-μ)/σ | ~(-3, 3) | Sensitive | Linear models, PCA |
+| MinMaxScaler | (x-xmin)/(xmax-xmin) | [0, 1] | Sensitive | Neural networks, Images |
+| RobustScaler | (x-median)/IQR | Varies | Robust | Outlier-prone data |
+
+### Scaling Decision Guide
+
+```
+Is your data normally distributed?
+├── YES → StandardScaler works well
+└── NO → Check for outliers
+    ├── YES (outliers present) → RobustScaler
+    └── NO → MinMaxScaler or StandardScaler
+```
+
+### Scaling Code Examples
+
+```python
+# BAD: Different scales will bias the model
+X_raw = [[1000, 2], [2000, 3], [1500, 1]]  # Feature 1 dominates
+
+# GOOD: Scale features to similar ranges
+from sklearn.preprocessing import StandardScaler
+
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X_raw)
+
+print("Raw features:", X_raw)
+print("Scaled features:", X_scaled.round(4))
+
+# Transform new data using same scaler
+new_data = [[1800, 2.5]]
+new_scaled = scaler.transform(new_data)
+print("New data scaled:", new_scaled)
+```
+
+## Feature Creation
+
+### Ratio Features
+
+```python
+# Create ratio features
+df['ratio_1'] = df['feature_a'] / (df['feature_b'] + 1e-10)  # Add small value to avoid division by zero
+df['ratio_2'] = df['income'] / (df['expenses'] + 1)
+df['ratio_3'] = df['total_payments'] / (df['total_orders'] + 1)
+```
+
+### Interaction Features
+
+```python
+# Multiply features together
+df['interaction_1'] = df['feature_a'] * df['feature_b']
+df['interaction_2'] = df['length'] * df['width']  # Area
+df['interaction_3'] = df['price'] * df['quantity']  # Total value
+
+# Polynomial interactions
+from sklearn.preprocessing import PolynomialFeatures
+
+poly = PolynomialFeatures(degree=2, include_bias=False)
+X_poly = poly.fit_transform(X[['feature_a', 'feature_b']])
+print(f"New features: {poly.get_feature_names_out(['feature_a', 'feature_b'])}")
+```
+
+### Date/Time Features
+
+```python
+df['date'] = pd.to_datetime(df['date'])
+
+# Extract components
+df['year'] = df['date'].dt.year
+df['month'] = df['date'].dt.month
+df['day'] = df['date'].dt.day
+df['dayofweek'] = df['date'].dt.dayofweek
+df['quarter'] = df['date'].dt.quarter
+df['is_weekend'] = df['dayofweek'].isin([5, 6]).astype(int)
+
+# Cyclical encoding (for models that can't capture cyclicality)
+df['month_sin'] = np.sin(2 * np.pi * df['month'] / 12)
+df['month_cos'] = np.cos(2 * np.pi * df['month'] / 12)
+df['day_sin'] = np.sin(2 * np.pi * df['dayofweek'] / 7)
+df['day_cos'] = np.cos(2 * np.pi * df['dayofweek'] / 7)
+```
+
+### Aggregated Features
+
+```python
+# Group-based aggregations
+df['mean_income_by_city'] = df.groupby('city')['income'].transform('mean')
+df['median_income_by_city'] = df.groupby('city')['income'].transform('median')
+df['std_income_by_city'] = df.groupby('city')['income'].transform('std')
+
+# Count encoding
+df['count_by_category'] = df.groupby('category')['category'].transform('count')
+
+# Rank within group
+df['rank_within_group'] = df.groupby('category')['value'].rank(pct=True)
+```
+
+### Binning/Discretization
+
+```python
+# Equal-width binning
+df['binned_equal'] = pd.cut(df['age'], bins=5, labels=['Very Young', 'Young', 'Middle', 'Old', 'Very Old'])
+
+# Equal-frequency binning (quantiles)
+df['binned_quantile'] = pd.qcut(df['income'], q=4, labels=['Low', 'Medium', 'High', 'Very High'])
+
+# Custom binning
+bins = [0, 18, 35, 50, 65, 100]
+labels = ['0-17', '18-34', '35-49', '50-64', '65+']
+df['age_group'] = pd.cut(df['age'], bins=bins, labels=labels)
+
+print(df['age_group'].value_counts().sort_index())
+```
+
+## Feature Selection
+
+### Why Feature Selection Matters
+
+- **Reduces overfitting**: Less features = less noise
+- **Improves performance**: Faster training, better generalization
+- **Reduces complexity**: Easier to interpret
+- **Removes redundant features**: Multicollinearity
+
+### Filter Methods
+
+#### Variance Threshold
+
+Remove features with low variance (constant or near-constant).
+
+```python
+from sklearn.feature_selection import VarianceThreshold
+
+# Remove features with variance below threshold
+selector = VarianceThreshold(threshold=0.0)  # Remove constant features
+X_selected = selector.fit_transform(X)
+
+# Get selected feature names
+selected_features = X.columns[selector.get_support()].tolist()
+print(f"Selected features: {len(selected_features)}")
+```
+
+#### Correlation Filtering
+
+Remove highly correlated features.
+
+```python
+def remove_highly_correlated(X, threshold=0.9):
+    """Remove features with correlation > threshold."""
+    corr_matrix = X.corr().abs()
+    upper = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool))
+    
+    # Find features with correlation > threshold
+    to_drop = [column for column in upper.columns if any(upper[column] > threshold)]
+    
+    return X.drop(columns=to_drop), to_drop
+
+X_reduced, dropped = remove_highly_correlated(X, threshold=0.9)
+print(f"Dropped features: {dropped}")
+```
+
+#### Statistical Tests
+
+```python
+from sklearn.feature_selection import SelectKBest, f_regression, mutual_info_regression
+
+# F-test (captures linear relationships)
+selector = SelectKBest(score_func=f_regression, k=10)
+X_selected = selector.fit_transform(X, y)
+
+# Mutual information (captures any relationship)
+selector = SelectKBest(score_func=mutual_info_regression, k=10)
+X_selected = selector.fit_transform(X, y)
+
+# View scores
+scores = pd.DataFrame({
+    'feature': X.columns,
+    'score': selector.scores_
+}).sort_values('score', ascending=False)
+
+print(scores)
+```
+
+### Wrapper Methods
+
+#### Recursive Feature Elimination (RFE)
+
+```python
+from sklearn.feature_selection import RFE
+from sklearn.ensemble import RandomForestRegressor
+
+# Use estimator to rank features
+estimator = RandomForestRegressor(n_estimators=100, random_state=42)
+selector = RFE(estimator, n_features_to_select=10, step=1)
+
+selector = selector.fit(X, y)
+selected_features = X.columns[selector.support_].tolist()
+
+print(f"RFE Selected: {selected_features}")
+
+# Feature ranking
+ranking = pd.DataFrame({
+    'feature': X.columns,
+    'ranking': selector.ranking_
+}).sort_values('ranking')
+
+print(ranking)
+```
+
+### Embedded Methods
+
+#### Feature Importance from Tree Models
+
+```python
+from sklearn.ensemble import RandomForestRegressor
+
+# Train model
+rf = RandomForestRegressor(n_estimators=100, random_state=42)
+rf.fit(X, y)
+
+# Get feature importances
+importances = pd.DataFrame({
+    'feature': X.columns,
+    'importance': rf.feature_importances_
+}).sort_values('importance', ascending=False)
+
+print("Feature Importances:")
+print(importances.head(20))
+
+# Visualize
+import matplotlib.pyplot as plt
+
+plt.figure(figsize=(10, 8))
+plt.barh(importances['feature'][:20], importances['importance'][:20])
+plt.xlabel('Importance')
+plt.title('Top 20 Feature Importances (Random Forest)')
+plt.gca().invert_yaxis()
+plt.tight_layout()
+plt.show()
+```
+
+#### LASSO Regularization
+
+```python
+from sklearn.linear_model import LassoCV
+from sklearn.preprocessing import StandardScaler
+
+# Scale features first (important for LASSO)
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X)
+
+# LASSO with cross-validation
+lasso = LassoCV(cv=5, random_state=42)
+lasso.fit(X_scaled, y)
+
+# Non-zero coefficients are selected features
+coef = pd.DataFrame({
+    'feature': X.columns,
+    'coefficient': np.abs(lasso.coef_)
+}).sort_values('coefficient', ascending=False)
+
+selected = coef[coef['coefficient'] > 0]['feature'].tolist()
+print(f"LASSO Selected {len(selected)} features: {selected}")
+```
+
+### Permutation Importance
+
+```python
+from sklearn.inspection import permutation_importance
+
+# Calculate permutation importance
+result = permutation_importance(rf, X, y, n_repeats=10, random_state=42)
+
+importances = pd.DataFrame({
+    'feature': X.columns,
+    'importance_mean': result.importances_mean,
+    'importance_std': result.importances_std
+}).sort_values('importance_mean', ascending=False)
+
+print(importances.head(10))
+```
+
+## Feature Engineering Pipeline
+
+```python
+from sklearn.pipeline import Pipeline, FeatureUnion
+from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.compose import ColumnTransformer
+from sklearn.feature_selection import SelectKBest, f_regression
+
+# Custom transformer for feature creation
+class FeatureCreator(BaseEstimator, TransformerMixin):
+    def __init__(self):
+        pass
+    
+    def fit(self, X, y=None):
+        return self
+    
+    def transform(self, X):
+        X = X.copy()
+        
+        # Create ratio features
+        if 'feature_a' in X.columns and 'feature_b' in X.columns:
+            X['ratio_ab'] = X['feature_a'] / (X['feature_b'] + 1e-10)
+        
+        # Create interaction features
+        if 'length' in X.columns and 'width' in X.columns:
+            X['area'] = X['length'] * X['width']
+        
+        return X
+
+# Complete pipeline example
+numeric_features = ['feature1', 'feature2', 'feature3', 'ratio_ab']
+categorical_features = ['category1', 'category2']
+
+preprocessor = ColumnTransformer(
+    transformers=[
+        ('numeric', StandardScaler(), numeric_features),
+        ('categorical', OneHotEncoder(drop='first', sparse_output=False), categorical_features)
+    ])
+
+pipeline = Pipeline([
+    ('feature_creator', FeatureCreator()),
+    ('preprocessor', preprocessor),
+    ('feature_selector', SelectKBest(score_func=f_regression, k='all')),
+    ('model', RandomForestRegressor(n_estimators=100, random_state=42))
+])
+```
+
+## Before/After Transformations
+
+### Complete Example
+
+```python
+import pandas as pd
+import numpy as np
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.compose import ColumnTransformer
+
+# ============================================
+# BEFORE (Raw Features)
+# ============================================
+raw_data = {
+    'sqft': [1500, 2000, 1200, 2500, 1800],
+    'bedrooms': [3, 4, 2, 5, 3],
+    'bathrooms': [2, 3, 1, 4, 2],
+    'age': [10, 5, 20, 2, 15],
+    'neighborhood': ['A', 'B', 'A', 'C', 'B'],
+    'type': ['house', 'apartment', 'house', 'condo', 'house']
+}
+df = pd.DataFrame(raw_data)
+print("=== BEFORE ===")
+print(df)
+
+# ============================================
+# FEATURE ENGINEERING
+# ============================================
+
+# 1. Create new features
+df['rooms_per_sqft'] = df['bedrooms'] + df['bathrooms']
+df['sqft_per_room'] = df['sqft'] / (df['rooms_per_sqft'] + 1)
+df['age_squared'] = df['age'] ** 2
+df['log_sqft'] = np.log1p(df['sqft'])
+
+# 2. Encode categorical
+df['neighborhood_encoded'] = pd.factorize(df['neighborhood'])[0]
+df = pd.get_dummies(df, columns=['type'], prefix='type')
+
+# 3. Scale numeric features
+numeric_cols = ['sqft', 'bedrooms', 'bathrooms', 'age', 
+                'rooms_per_sqft', 'sqft_per_room', 'age_squared', 'log_sqft']
+
+scaler = StandardScaler()
+df[numeric_cols] = scaler.fit_transform(df[numeric_cols])
+
+print("\n=== AFTER ===")
+print(df.round(3))
+```
+
+**Output:**
+```
+=== BEFORE ===
+    sqft  bedrooms  bathrooms  age neighborhood       type
+0   1500         3          2   10           A       house
+1   2000         4          3    5           B  apartment
+2   1200         2          1   20           A       house
+3   2500         5          4    2           C       condo
+4   1800         3          2   15           B       house
+
+=== AFTER ===
+     sqft  bedrooms  bathrooms       age  neighborhood_encoded  \
+0 -0.408  -0.463      -0.464  0.229             0
+1  0.408   0.463       0.464 -0.801             1
+2 -1.021  -1.388      -1.392  1.859             0
+3  1.225   1.388       1.392 -1.288             2
+4 -0.204  -0.000      -0.000  0.801             1
+
+   rooms_per_sqft  sqft_per_room  age_squared  log_sqft  type_apartment  type_condo  type_house
+0               3          300.0        100      7.313   ...   
+...
+```
+
+## Common Pitfalls
+
+### ⚠️ Data Leakage
+
+```python
+# BAD: Leaking target information
+df['target_encoded'] = df.groupby('category')['target'].transform('mean')
+
+# GOOD: Proper encoding within cross-validation folds
+from sklearn.model_selection import KFold
+
+kf = KFold(n_splits=5, shuffle=True, random_state=42)
+df['target_encoded'] = 0
+
+for train_idx, val_idx in kf.split(df):
+    means = df.iloc[train_idx].groupby('category')['target'].mean()
+    df.loc[df.index[val_idx], 'target_encoded'] = df.iloc[val_idx]['category'].map(means)
+```
+
+### ⚠️ Target Leakage Prevention
+
+```python
+# NEVER include features that wouldn't be available at prediction time
+# Example: Including 'total_amount' when predicting 'has_default'
+
+# Only use features available BEFORE the prediction
+X = df[['income', 'debt', 'employment_years', 'credit_score']]
+y = df['has_default']
+```
+
+### ⚠️ Overfitting via Feature Engineering
+
+```python
+# BAD: Creating too many features from small dataset
+# 1000 samples with 500 engineered features = overfitting
+
+# GOOD: Feature selection after engineering
+# Or use regularization (LASSO, Ridge)
+```
+
+## Best Practices
+
+- [ ] Always fit scalers on training data only
+- [ ] Use cross-validation for feature selection
+- [ ] Handle missing values before scaling
+- [ ] Be cautious with target encoding (use regularization)
+- [ ] Document all feature transformations
+- [ ] Test features individually for signal
+- [ ] Remove highly correlated features
+- [ ] Consider domain knowledge when creating features
+- [ ] Monitor feature importance over time
+- [ ] Version control your feature engineering code
+
+## Feature Engineering Checklist
+
+```
+For each feature, consider:
+├── Is it correlated with the target?
+├── Is it available at prediction time?
+├── Does it have data quality issues?
+├── Is it redundant with another feature?
+├── Should it be scaled?
+├── Should it be transformed?
+└── What's the best encoding method?
+```

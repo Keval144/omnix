@@ -1,25 +1,633 @@
-Classification problems predict categorical outputs.
+# Classification Pipeline
 
-Pipeline:
+## Overview
 
-1 Data loading
-2 Missing value handling
-3 Encoding categorical features
-4 Feature scaling
-5 Train test split
-6 Model training
+Classification is a supervised learning task where the goal is to predict categorical labels. Examples include spam detection (spam/not spam), disease diagnosis (positive/negative), and customer segmentation (segment A/B/C).
 
-Common models:
+## Pipeline Steps
 
-Logistic Regression
-Random Forest
-XGBoost
-Neural Networks
+```
+1. Data Loading
+2. Exploratory Data Analysis
+3. Data Preprocessing
+4. Feature Engineering
+5. Train/Test Split
+6. Model Training
+7. Model Evaluation
+8. Hyperparameter Tuning
+```
 
-Evaluation metrics:
+## Data Loading and Exploration
 
-Accuracy
-Precision
-Recall
-F1 Score
-Confusion Matrix
+```python
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Load dataset
+df = pd.read_csv('data.csv')
+
+# Basic info
+print(f"Shape: {df.shape}")
+print(f"\nColumn types:\n{df.dtypes}")
+
+# Target distribution
+print(f"\nTarget distribution:\n{df['target'].value_counts()}")
+print(f"\nClass balance: {df['target'].value_counts(normalize=True)}")
+
+# Visualize class distribution
+plt.figure(figsize=(8, 4))
+df['target'].value_counts().plot(kind='bar')
+plt.title('Class Distribution')
+plt.xlabel('Class')
+plt.ylabel('Count')
+plt.tight_layout()
+plt.show()
+```
+
+## Class Imbalance Handling
+
+### Check for Imbalance
+
+```python
+# Calculate imbalance ratio
+class_counts = df['target'].value_counts()
+imbalance_ratio = class_counts.max() / class_counts.min()
+print(f"Imbalance ratio: {imbalance_ratio:.2f}")
+
+# Visualize
+plt.figure(figsize=(8, 4))
+sns.barplot(x=class_counts.index, y=class_counts.values)
+plt.title('Class Distribution (Imbalanced)')
+plt.ylabel('Count')
+plt.show()
+
+# If imbalance_ratio > 10, consider imbalance handling techniques
+if imbalance_ratio > 10:
+    print("⚠️ Warning: Dataset is highly imbalanced!")
+```
+
+### Handling Imbalanced Data
+
+#### SMOTE (Synthetic Minority Over-sampling)
+
+```python
+# pip install imbalanced-learn
+
+from imblearn.over_sampling import SMOTE
+from sklearn.model_selection import train_test_split
+
+# Split first (to avoid data leakage)
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42, stratify=y
+)
+
+# Apply SMOTE only to training data
+smote = SMOTE(random_state=42)
+X_train_resampled, y_train_resampled = smote.fit_resample(X_train, y_train)
+
+print(f"Before SMOTE: {y_train.value_counts().to_dict()}")
+print(f"After SMOTE: {pd.Series(y_train_resampled).value_counts().to_dict()}")
+```
+
+#### Random Under-sampling
+
+```python
+from imblearn.under_sampling import RandomUnderSampler
+
+rus = RandomUnderSampler(random_state=42)
+X_train_resampled, y_train_resampled = rus.fit_resample(X_train, y_train)
+
+print(f"After under-sampling: {pd.Series(y_train_resampled).value_counts().to_dict()}")
+```
+
+#### Class Weights
+
+```python
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
+
+# Compute class weights automatically
+class_weight = 'balanced'  # sklearn computes weights automatically
+
+# Manual class weights
+manual_weights = {0: 1, 1: 10}  # Weight minority class 10x more
+
+# Using class weights
+model = RandomForestClassifier(class_weight=manual_weights, random_state=42)
+model = LogisticRegression(class_weight='balanced', random_state=42)
+```
+
+## Data Preprocessing for Classification
+
+### Handling Missing Values
+
+```python
+# Check missing values
+missing = df.isnull().sum()
+print(f"Missing values:\n{missing[missing > 0]}")
+
+# For numeric features
+numeric_cols = df.select_dtypes(include=[np.number]).columns
+for col in numeric_cols:
+    if df[col].isnull().sum() > 0:
+        df[col] = df[col].fillna(df[col].median())
+
+# For categorical features
+categorical_cols = df.select_dtypes(include=['object']).columns
+for col in categorical_cols:
+    if df[col].isnull().sum() > 0:
+        df[col] = df[col].fillna(df[col].mode()[0])
+```
+
+### Encoding Categorical Variables
+
+```python
+from sklearn.preprocessing import LabelEncoder, OneHotEncoder
+
+# Label Encoding (for ordinal or tree-based models)
+le = LabelEncoder()
+df['category_encoded'] = le.fit_transform(df['category'])
+
+# One-Hot Encoding (for linear models, neural networks)
+df = pd.get_dummies(df, columns=['category'], prefix='cat')
+
+# Target Encoding (careful with data leakage!)
+from sklearn.model_selection import StratifiedKFold
+
+def target_encode_cv(train_df, col, target, n_splits=5):
+    """Target encoding with cross-validation to prevent leakage."""
+    train_df = train_df.copy()
+    train_df[f'{col}_encoded'] = 0
+    
+    skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
+    
+    for train_idx, val_idx in skf.split(train_df, train_df[target]):
+        means = train_df.iloc[train_idx].groupby(col)[target].mean()
+        train_df.loc[train_df.index[val_idx], f'{col}_encoded'] = \
+            train_df.iloc[val_idx][col].map(means)
+    
+    return train_df[f'{col}_encoded']
+```
+
+### Feature Scaling
+
+```python
+from sklearn.preprocessing import StandardScaler
+
+# Scale features (important for logistic regression, SVM, neural networks)
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X)
+
+# For tree-based models, scaling is NOT required
+# RandomForest, XGBoost, LightGBM don't need scaled features
+```
+
+## Feature Engineering for Classification
+
+### Creating Discriminative Features
+
+```python
+# Ratio features
+df['debt_to_income'] = df['debt'] / (df['income'] + 1)
+df['credit_utilization'] = df['balance'] / (df['credit_limit'] + 1)
+
+# Interaction features
+df['age_income_interaction'] = df['age'] * df['income']
+
+# Binning continuous variables
+df['age_group'] = pd.cut(df['age'], bins=[0, 25, 35, 50, 100], 
+                         labels=['young', 'adult', 'middle', 'senior'])
+
+# Statistical features
+df['transaction_count'] = df[['trans_1', 'trans_2', 'trans_3']].sum(axis=1)
+df['transaction_std'] = df[['trans_1', 'trans_2', 'trans_3']].std(axis=1)
+```
+
+## Model Selection
+
+### When to Use Each Model
+
+#### Logistic Regression
+
+**Best for:**
+- Binary classification with linearly separable data
+- When interpretability is crucial
+- Baseline model
+- Probability estimation
+
+```python
+from sklearn.linear_model import LogisticRegression
+
+model = LogisticRegression(
+    C=1.0,  # Regularization strength
+    class_weight='balanced',
+    max_iter=1000,
+    random_state=42
+)
+
+model.fit(X_train, y_train)
+proba = model.predict_proba(X_test)[:, 1]
+```
+
+#### Random Forest
+
+**Best for:**
+- Non-linear relationships
+- Feature importance needed
+- Robust to overfitting
+- Mixed feature types
+
+```python
+from sklearn.ensemble import RandomForestClassifier
+
+model = RandomForestClassifier(
+    n_estimators=200,
+    max_depth=10,
+    min_samples_split=5,
+    class_weight='balanced',
+    random_state=42,
+    n_jobs=-1
+)
+```
+
+#### XGBoost
+
+**Best for:**
+- Best performance on tabular data
+- Imbalanced datasets
+- Feature importance
+- Competition winning solutions
+
+```python
+from xgboost import XGBClassifier
+
+model = XGBClassifier(
+    n_estimators=200,
+    max_depth=6,
+    learning_rate=0.1,
+    scale_pos_weight=ratio_of_majority_to_minority,
+    eval_metric='logloss',
+    random_state=42
+)
+```
+
+#### Support Vector Machine (SVM)
+
+**Best for:**
+- High-dimensional data
+- Clear margin of separation
+- Medium-sized datasets
+
+```python
+from sklearn.svm import SVC
+
+model = SVC(
+    kernel='rbf',  # 'linear', 'poly', 'rbf', 'sigmoid'
+    C=1.0,
+    class_weight='balanced',
+    probability=True,  # Enable probability estimates
+    random_state=42
+)
+```
+
+#### Neural Network
+
+**Best for:**
+- Complex patterns
+- Large datasets
+- Deep learning applications
+
+```python
+from sklearn.neural_network import MLPClassifier
+
+model = MLPClassifier(
+    hidden_layer_sizes=(100, 50),
+    activation='relu',
+    solver='adam',
+    max_iter=500,
+    early_stopping=True,
+    validation_fraction=0.1,
+    random_state=42
+)
+```
+
+## Evaluation Metrics
+
+### Confusion Matrix
+
+```python
+from sklearn.metrics import confusion_matrix, classification_report
+import seaborn as sns
+
+y_pred = model.predict(X_test)
+
+# Confusion matrix
+cm = confusion_matrix(y_test, y_pred)
+
+plt.figure(figsize=(8, 6))
+sns.heatmap(cm, annot=True, fmt='d', cmap='Blues')
+plt.xlabel('Predicted')
+plt.ylabel('Actual')
+plt.title('Confusion Matrix')
+plt.show()
+
+# Classification report
+print(classification_report(y_test, y_pred, target_names=['Class 0', 'Class 1']))
+```
+
+**Confusion Matrix Interpretation:**
+
+```
+                Predicted
+              | Neg  | Pos
+Actual  ------+------+------
+  Neg         | TN   | FP
+              |      |
+  Pos         | FN   | TP
+
+TN = True Negative  (Correctly predicted negative)
+FP = False Positive (Incorrectly predicted positive)
+FN = False Negative (Incorrectly predicted negative)
+TP = True Positive  (Correctly predicted positive)
+```
+
+### Key Metrics
+
+```python
+from sklearn.metrics import (
+    accuracy_score, precision_score, recall_score, f1_score,
+    roc_auc_score, log_loss, balanced_accuracy_score
+)
+
+# Accuracy (overall correctness)
+accuracy = accuracy_score(y_test, y_pred)
+print(f"Accuracy: {accuracy:.4f}")
+
+# Precision (of predicted positives, how many are correct)
+precision = precision_score(y_test, y_pred)
+print(f"Precision: {precision:.4f}")
+
+# Recall/Sensitivity (of actual positives, how many are caught)
+recall = recall_score(y_test, y_pred)
+print(f"Recall: {recall:.4f}")
+
+# F1 Score (harmonic mean of precision and recall)
+f1 = f1_score(y_test, y_pred)
+print(f"F1 Score: {f1:.4f}")
+
+# Specificity (of actual negatives, how many are caught)
+tn, fp, fn, tp = cm.ravel()
+specificity = tn / (tn + fp)
+print(f"Specificity: {specificity:.4f}")
+
+# Balanced Accuracy (accounts for class imbalance)
+balanced_acc = balanced_accuracy_score(y_test, y_pred)
+print(f"Balanced Accuracy: {balanced_acc:.4f}")
+```
+
+### Probability-Based Metrics
+
+```python
+from sklearn.metrics import roc_curve, precision_recall_curve, auc
+
+# Get probability predictions
+y_proba = model.predict_proba(X_test)[:, 1]
+
+# ROC-AUC Score
+roc_auc = roc_auc_score(y_test, y_proba)
+print(f"ROC-AUC: {roc_auc:.4f}")
+
+# ROC Curve
+fpr, tpr, thresholds = roc_curve(y_test, y_proba)
+
+plt.figure(figsize=(8, 6))
+plt.plot(fpr, tpr, label=f'ROC Curve (AUC = {roc_auc:.4f})')
+plt.plot([0, 1], [0, 1], 'k--', label='Random')
+plt.xlabel('False Positive Rate')
+plt.ylabel('True Positive Rate')
+plt.title('ROC Curve')
+plt.legend()
+plt.show()
+
+# Precision-Recall Curve
+precision_curve, recall_curve, _ = precision_recall_curve(y_test, y_proba)
+
+plt.figure(figsize=(8, 6))
+plt.plot(recall_curve, precision_curve)
+plt.xlabel('Recall')
+plt.ylabel('Precision')
+plt.title('Precision-Recall Curve')
+plt.show()
+
+# PR-AUC
+pr_auc = auc(recall_curve, precision_curve)
+print(f"PR-AUC: {pr_auc:.4f}")
+```
+
+### Metric Selection Guide
+
+```
+What metric to optimize?
+
+Binary Classification:
+├── Balanced classes + general accuracy?
+│   └── Accuracy
+├── Minimize false positives (costly)?
+│   └── Precision
+├── Minimize false negatives (costly)?
+│   └── Recall
+├── Balance precision and recall?
+│   └── F1 Score
+├── Threshold-independent comparison?
+│   └── ROC-AUC
+└── Imbalanced classes?
+    └── Balanced Accuracy
+
+Multi-class Classification:
+├── Overall performance?
+│   └── Accuracy / Macro F1
+├── Per-class performance?
+│   └── Weighted/Micro F1
+└── Class imbalance?
+    └── Macro-weighted F1
+```
+
+## Threshold Selection
+
+```python
+from sklearn.metrics import precision_recall_curve
+
+# Get precision-recall curve
+precisions, recalls, thresholds = precision_recall_curve(y_test, y_proba)
+
+# Find threshold for specific precision
+target_precision = 0.90
+idx = np.where(precisions >= target_precision)[0][0]
+optimal_threshold = thresholds[idx]
+
+print(f"Threshold for {target_precision*100}% precision: {optimal_threshold:.3f}")
+
+# Apply custom threshold
+y_pred_custom = (y_proba >= optimal_threshold).astype(int)
+
+# Find optimal threshold (F1 maximization)
+f1_scores = 2 * (precisions * recalls) / (precisions + recalls + 1e-10)
+optimal_idx = np.argmax(f1_scores)
+optimal_threshold_f1 = thresholds[optimal_idx]
+
+print(f"Optimal threshold (max F1): {optimal_threshold_f1:.3f}")
+```
+
+## Complete Pipeline Example
+
+```python
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import train_test_split, cross_val_score, GridSearchCV
+from sklearn.preprocessing import StandardScaler, LabelEncoder
+from sklearn.pipeline import Pipeline
+from sklearn.compose import ColumnTransformer
+from sklearn.impute import SimpleImputer
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import (
+    accuracy_score, precision_score, recall_score, f1_score,
+    classification_report, confusion_matrix, roc_auc_score
+)
+from imblearn.over_sampling import SMOTE
+from imblearn.pipeline import Pipeline as ImbPipeline
+
+# Load data
+df = pd.read_csv('data.csv')
+X = df.drop('target', axis=1)
+y = df['target']
+
+# Encode target if needed
+if y.dtype == 'object':
+    le = LabelEncoder()
+    y = le.fit_transform(y)
+
+# Split data (stratified for imbalanced data)
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42, stratify=y
+)
+
+# Handle imbalance with SMOTE
+smote = SMOTE(random_state=42)
+X_train_resampled, y_train_resampled = smote.fit_resample(X_train, y_train)
+
+# Create preprocessing pipeline
+numeric_features = X.select_dtypes(include=[np.number]).columns.tolist()
+categorical_features = X.select_dtypes(include=['object']).columns.tolist()
+
+preprocessor = ColumnTransformer(
+    transformers=[
+        ('num', Pipeline([
+            ('imputer', SimpleImputer(strategy='median')),
+            ('scaler', StandardScaler())
+        ]), numeric_features),
+        ('cat', Pipeline([
+            ('imputer', SimpleImputer(strategy='most_frequent')),
+            ('encoder', OneHotEncoder(handle_unknown='ignore'))
+        ]), categorical_features)
+    ])
+
+# Define models to compare
+models = {
+    'Logistic Regression': LogisticRegression(class_weight='balanced', max_iter=1000, random_state=42),
+    'Random Forest': RandomForestClassifier(n_estimators=100, class_weight='balanced', random_state=42),
+    'Gradient Boosting': GradientBoostingClassifier(n_estimators=100, random_state=42)
+}
+
+# Compare models
+results = {}
+for name, model in models.items():
+    pipeline = Pipeline([
+        ('preprocessor', preprocessor),
+        ('classifier', model)
+    ])
+    
+    # Cross-validation
+    cv_scores = cross_val_score(pipeline, X_train_resampled, y_train_resampled, cv=5, scoring='f1')
+    
+    # Fit and predict
+    pipeline.fit(X_train_resampled, y_train_resampled)
+    y_pred = pipeline.predict(X_test)
+    y_proba = pipeline.predict_proba(X_test)[:, 1]
+    
+    results[name] = {
+        'cv_f1_mean': cv_scores.mean(),
+        'cv_f1_std': cv_scores.std(),
+        'test_accuracy': accuracy_score(y_test, y_pred),
+        'test_precision': precision_score(y_test, y_pred),
+        'test_recall': recall_score(y_test, y_pred),
+        'test_f1': f1_score(y_test, y_pred),
+        'test_roc_auc': roc_auc_score(y_test, y_proba)
+    }
+
+# Results summary
+results_df = pd.DataFrame(results).T
+print(results_df.sort_values('test_roc_auc', ascending=False))
+
+# Select best model and tune
+best_model_name = results_df['test_roc_auc'].idxmax()
+print(f"\nBest model: {best_model_name}")
+```
+
+## Common Pitfalls
+
+### Accuracy Paradox
+
+```python
+# BAD: Using accuracy on imbalanced data
+# 95% accuracy might just predict majority class!
+
+# Always check class distribution
+print(f"Class distribution: {pd.Series(y_test).value_counts()}")
+
+# If highly imbalanced, accuracy is misleading
+# Use balanced accuracy, precision, recall, F1 instead
+
+# GOOD: Use appropriate metrics
+print(f"Balanced Accuracy: {balanced_accuracy_score(y_test, y_pred):.4f}")
+print(f"F1 Score: {f1_score(y_test, y_pred):.4f}")
+```
+
+### Data Leakage in Cross-Validation
+
+```python
+# BAD: SMOTE before split
+X_resampled, y_resampled = smote.fit_resample(X, y)  # LEAKAGE!
+X_train, X_test, y_train, y_test = train_test_split(X_resampled, y_resampled)
+
+# GOOD: SMOTE only on training data
+X_train, X_test, y_train, y_test = train_test_split(X, y)
+X_train_resampled, y_train_resampled = smote.fit_resample(X_train, y_train)
+```
+
+### Not Using Stratified Split
+
+```python
+# BAD: Random split loses class distribution
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
+
+# GOOD: Stratified split maintains class ratio
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, stratify=y
+)
+```
+
+## Best Practices Checklist
+
+- [ ] Check class imbalance ratio
+- [ ] Use stratified train/test split
+- [ ] Handle imbalance (SMOTE, class weights, or undersampling)
+- [ ] Scale features for distance-based models (LR, SVM, NN)
+- [ ] Don't scale for tree-based models
+- [ ] Use cross-validation for model selection
+- [ ] Report multiple metrics (not just accuracy)
+- [ ] Plot confusion matrix and ROC curve
+- [ ] Choose threshold based on business requirements
+- [ ] Consider cost of false positives vs false negatives
