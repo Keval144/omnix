@@ -91,3 +91,11 @@ export async function generateNotebook(projectId: string): Promise<NotebookRespo
   });
   return response.json() as Promise<NotebookResponse>;
 }
+
+export async function downloadNotebook(notebookPath: string): Promise<Blob> {
+  const encodedPath = encodeURIComponent(notebookPath);
+  const response = await authenticatedFetch(`/notebook/download?notebook_path=${encodedPath}`, {
+    method: "GET",
+  });
+  return response.blob();
+}

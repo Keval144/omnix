@@ -19,10 +19,6 @@ DEV_USER_EMAIL = "dev@omnix.local"
 
 security = HTTPBearer()
 
-DEV_USER_ID = "omnix-dev-user"
-DEV_USER_NAME = "Omnix Dev User"
-DEV_USER_EMAIL = "dev@omnix.local"
-
 
 class AuthenticatedUser(BaseModel):
     user_id: str
@@ -43,22 +39,28 @@ async def _validate_token(token: str) -> dict[str, Any]:
     if not jwks:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="JWKS not configured")
     
-    # Assume RS256
     header = jwt.get_unverified_header(token)
     kid = header.get("kid")
     if not kid:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
     
     key = None
+    algorithm = None
     for jwk in jwks.get("keys", []):
         if jwk.get("kid") == kid:
-            key = jwt.algorithms.RSAAlgorithm.from_jwk(jwk)
+            kty = jwk.get("kty")
+            if kty == "RSA":
+                key = jwt.algorithms.RSAAlgorithm.from_jwk(jwk)
+                algorithm = "RS256"
+            elif kty == "OKP":
+                key = jwt.algorithms.OKPAlgorithm.from_jwk(jwk)
+                algorithm = "EdDSA"
             break
-    if not key:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+    if not key or not algorithm:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unsupported key type")
     
     try:
-        payload = jwt.decode(token, key, algorithms=["RS256"], audience=settings.jwt_audience, issuer=settings.jwt_issuer)
+        payload = jwt.decode(token, key, algorithms=[algorithm], audience=settings.resolved_jwt_audience, issuer=settings.resolved_jwt_issuer)
         return payload
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token expired")
@@ -66,10 +68,10 @@ async def _validate_token(token: str) -> dict[str, Any]:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
 
 
-async def _ensure_dev_user(session: AsyncSession) -> str:
+async def _ensure_user(session: AsyncSession, user_id: str, email: str | None = None, name: str | None = None) -> str:
     existing_user_id = await session.scalar(
         text('SELECT id FROM "user" WHERE id = :user_id'),
-        {"user_id": DEV_USER_ID},
+        {"user_id": user_id},
     )
     if existing_user_id:
         return str(existing_user_id)
@@ -83,17 +85,23 @@ async def _ensure_dev_user(session: AsyncSession) -> str:
             """
         ),
         {
-            "user_id": DEV_USER_ID,
-            "name": DEV_USER_NAME,
-            "email": DEV_USER_EMAIL,
+            "user_id": user_id,
+            "name": name or DEV_USER_NAME,
+            "email": email or DEV_USER_EMAIL,
         },
     )
     await session.commit()
-    return DEV_USER_ID
+    return user_id
 
 
 async def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
     session: AsyncSession = Depends(get_db_session),
 ) -> AuthenticatedUser:
-    user_id = await _ensure_dev_user(session)
-    return AuthenticatedUser(user_id=user_id, claims={})
+    token = credentials.credentials
+    claims = await _validate_token(token)
+    user_id = claims.get("sub")
+    if not user_id:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token: missing subject")
+    await _ensure_user(session, user_id, claims.get("email"), claims.get("name"))
+    return AuthenticatedUser(user_id=str(user_id), claims=claims)

@@ -157,7 +157,13 @@ export default function ChatBotClient({ chatId }: { chatId?: string }) {
     }
   };
 
-  function CodeBlock({ children, className }: { children: string; className?: string }) {
+  function CodeBlock({
+    children,
+    className,
+  }: {
+    children: string;
+    className?: string;
+  }) {
     const language = className?.replace("language-", "") || "text";
     const isInline = !className;
 
@@ -183,7 +189,9 @@ export default function ChatBotClient({ chatId }: { chatId?: string }) {
             {language}
           </div>
         )}
-        <pre className={`overflow-x-auto whitespace-pre-wrap ${language && language !== "text" ? "pt-6" : ""}`}>
+        <pre
+          className={`overflow-x-auto whitespace-pre-wrap ${language && language !== "text" ? "pt-6" : ""}`}
+        >
           {children}
         </pre>
       </div>
@@ -200,7 +208,10 @@ export default function ChatBotClient({ chatId }: { chatId?: string }) {
             const isInline = !className;
             if (isInline) {
               return (
-                <code className="bg-muted rounded px-1 py-0.5 font-mono text-sm" {...props}>
+                <code
+                  className="bg-muted rounded px-1 py-0.5 font-mono text-sm"
+                  {...props}
+                >
                   {children}
                 </code>
               );
@@ -236,7 +247,7 @@ export default function ChatBotClient({ chatId }: { chatId?: string }) {
               </div>
             </div>
           )}
-          <ScrollArea className="flex-1 min-h-0">
+          <ScrollArea className="flex-1 min-h-0 overflow-y-auto h-[300px]">
             <div className="space-y-6 pb-4">
               {messages.map((msg) => (
                 <div
@@ -271,7 +282,7 @@ export default function ChatBotClient({ chatId }: { chatId?: string }) {
                           : "bg-muted prose prose-sm dark:prose-invert max-w-none"
                       }`}
                     >
-                      <div className="break-words">
+                      <div className="wrap-break-word">
                         {renderMessageContent(msg.content)}
                       </div>
                     </div>

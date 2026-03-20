@@ -34,7 +34,7 @@ frontend/yarn-error.log*
 frontend/.pnpm-debug.log*
 
 # env files
-frontend/.env*
+frontend/.env
 
 # vercel
 frontend/.vercel
@@ -55,7 +55,7 @@ __pycache__/
 backend/.env
 
 .env
-.env.*
+.env
 
 backend/__pycache__
 backend/db/__pycache__

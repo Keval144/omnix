@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
-import { authenticatedFetch, authenticatedJsonFetch, generateNotebook } from "@/lib/api-client";
+import { authenticatedFetch, authenticatedJsonFetch, downloadNotebook, generateNotebook } from "@/lib/api-client";
 import Link from "next/link";
 
 const MAX_CHATS = 5;
@@ -102,15 +102,21 @@ export default function DashboardPage() {
     }
   };
 
-  const handleDownloadNotebook = (notebookPath: string | null) => {
+  const handleDownloadNotebook = async (notebookPath: string | null) => {
     if (!notebookPath) return;
-    const url = notebookPath;
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = url.split("/").pop() || "notebook.ipynb";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    try {
+      const blob = await downloadNotebook(notebookPath);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = notebookPath.split("/").pop() || "notebook.ipynb";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      toast.error("Failed to download notebook");
+    }
   };
 
   // A project is "completed" if it has both a dataset and a notebook path

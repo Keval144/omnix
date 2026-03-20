@@ -29,6 +29,7 @@ import { Input } from "@/components/shadcn-ui/input";
 import { ScrollArea } from "@/components/shadcn-ui/scroll-area";
 import {
   authenticatedJsonFetch,
+  downloadNotebook,
   generateNotebook,
   type Project,
 } from "@/lib/api-client";
@@ -67,11 +68,7 @@ function ChatContent() {
   const [isGeneratingNotebook, setIsGeneratingNotebook] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollIntoView({ behavior: "smooth" });
-    }
-  }, []);
+
 
   useEffect(() => {
     const fetchProject = async () => {
@@ -145,13 +142,20 @@ function ChatContent() {
     }
   };
 
-  const handleDownloadNotebook = (notebookPath: string) => {
-    const link = document.createElement("a");
-    link.href = notebookPath;
-    link.download = notebookPath.split("/").pop() || "notebook.ipynb";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const handleDownloadNotebook = async (notebookPath: string) => {
+    try {
+      const blob = await downloadNotebook(notebookPath);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = notebookPath.split("/").pop() || "notebook.ipynb";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      toast.error("Failed to download notebook");
+    }
   };
 
   const handleSuggestionClick = (suggestion: string) => {
