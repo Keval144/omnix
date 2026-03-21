@@ -8,7 +8,7 @@ const nextConfig: NextConfig = {
   rewrites() {
     return [
       {
-        source: ":path*",
+        source: "/:path*",
         destination: "https://omnix-backend-l2h4.onrender.com/:path*",
       },
     ];
