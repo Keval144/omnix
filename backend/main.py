@@ -4,6 +4,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
+from dotenv import load_dotenv
+import os
 
 from config import get_settings
 from routers.chat_routes import router as chat_router
@@ -56,11 +58,18 @@ storage_path = settings.storage_root
 app.mount("/storage/datasets", StaticFiles(directory=str(storage_path / "datasets")), name="datasets")
 app.mount("/storage/notebooks", StaticFiles(directory=str(storage_path / "notebooks")), name="notebooks")
 
+
+BASE_DIR = Path(__file__).resolve().parent
+REPO_ROOT = BASE_DIR.parent
+
+CORS_ORIGINS = os.getenv("CORS_ORIGINS")
+
+load_dotenv(BASE_DIR / ".env")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],        # tighten to your frontend URL in production
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],        # allows OPTIONS, GET, POST, PUT, DELETE …
+    allow_methods=["*"],
     allow_headers=["*"],
 )
 
