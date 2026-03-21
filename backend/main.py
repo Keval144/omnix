@@ -60,14 +60,16 @@ app.mount("/storage/notebooks", StaticFiles(directory=str(storage_path / "notebo
 
 
 BASE_DIR = Path(__file__).resolve().parent
-REPO_ROOT = BASE_DIR.parent
+load_dotenv(BASE_DIR / ".env") 
 
-CORS_ORIGINS = os.getenv("CORS_ORIGINS")
+origin = os.getenv("CORS_ORIGIN")
 
-load_dotenv(BASE_DIR / ".env")
+if not origin:
+    origin = "http://localhost:3000"
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=CORS_ORIGINS,
+    allow_origins=origin,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

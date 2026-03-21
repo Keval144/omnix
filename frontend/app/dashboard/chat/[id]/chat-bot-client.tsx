@@ -247,7 +247,7 @@ export default function ChatBotClient({ chatId }: { chatId?: string }) {
               </div>
             </div>
           )}
-          <ScrollArea className="flex-1 min-h-0 overflow-y-auto h-[300px]">
+          <ScrollArea className="flex-1 min-h-0 overflow-y-auto h-75">
             <div className="space-y-6 pb-4">
               {messages.map((msg) => (
                 <div
