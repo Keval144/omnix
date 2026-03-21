@@ -8,8 +8,8 @@ const nextConfig: NextConfig = {
   rewrites() {
     return [
       {
-        source: "/notebook/:path*",
-        destination: "https://omnix-backend-l2h4.onrender.com/notebook/:path*",
+        source: ":path*",
+        destination: "https://omnix-backend-l2h4.onrender.com/:path*",
       },
     ];
   },
