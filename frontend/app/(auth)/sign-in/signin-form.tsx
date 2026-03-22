@@ -81,8 +81,8 @@ export function SigninForm() {
   };
 
   return (
-    <Card className="w-full max-w-md backdrop-blur-xl py-2">
-      <CardHeader className="text-center space-y-1">
+    <Card className="mx-auto w-full max-w-md backdrop-blur-xl px-4 py-3 sm:px-6">
+      <CardHeader className="space-y-1 px-0 text-center">
         <CardTitle className="text-3xl mb-2">
           <Link href="/" className="flex items-center justify-center gap-2">
             <Logo size={30} />
@@ -97,7 +97,7 @@ export function SigninForm() {
         </CardDescription>
       </CardHeader>
 
-      <CardContent>
+      <CardContent className="px-0">
         <div className="flex flex-col gap-4">
           {/* Email */}
           <div className="space-y-1.5">
@@ -132,7 +132,7 @@ export function SigninForm() {
 
               <Input
                 type={showPassword ? "text" : "password"}
-                placeholder="••••••••"
+                placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
                 value={password}
                 onChange={(e) => {
                   setPassword(e.target.value);
@@ -190,8 +190,8 @@ export function SigninForm() {
         </div>
       </CardContent>
 
-      <CardFooter className="justify-center text-sm">
-        Don’t have an account?
+      <CardFooter className="justify-center px-0 text-center text-sm">
+        Donâ€™t have an account?
         <Link
           href="/sign-up"
           className="ml-1 font-medium text-emerald-500 hover:underline"

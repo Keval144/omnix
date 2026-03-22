@@ -1,6 +1,6 @@
 "use client";
 
-import { motion, useSpring, useInView } from "framer-motion";
+import { motion, useInView, useSpring } from "framer-motion";
 import { useEffect, useRef } from "react";
 
 function AnimatedNumber({
@@ -45,7 +45,7 @@ export function StatsSection() {
       viewport={{ once: true }}
       className="border-y border-border/60 bg-muted/30"
     >
-      <div className="max-w-5xl mx-auto px-6 py-12 grid grid-cols-3 gap-8 text-center">
+      <div className="mx-auto grid max-w-5xl grid-cols-1 gap-8 px-4 py-12 text-center sm:px-6 md:grid-cols-3">
         {stats.map((stat, i) => (
           <motion.div
             key={stat.label}
@@ -54,11 +54,11 @@ export function StatsSection() {
             viewport={{ once: true }}
             transition={{ delay: i * 0.15 }}
           >
-            <div className="text-3xl md:text-4xl font-light text-foreground">
+            <div className="text-3xl font-light text-foreground md:text-4xl">
               <AnimatedNumber value={stat.value} suffix={stat.suffix} />
             </div>
 
-            <div className="text-sm text-muted-foreground mt-1">
+            <div className="mt-1 text-sm text-muted-foreground">
               {stat.label}
             </div>
           </motion.div>

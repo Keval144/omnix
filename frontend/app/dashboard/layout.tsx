@@ -34,8 +34,8 @@ async function ChatLayout({ children }: { children: React.ReactNode }) {
     <>
       <SidebarWrapperClient defaultOpen={defaultOpen} user={safeUser}>
         <SidebarInset>
-          <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
-            <div className="flex items-center gap-2 px-4">
+          <header className="flex h-16 shrink-0 items-center gap-2 border-b px-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12 sm:px-4">
+            <div className="flex min-w-0 items-center gap-2">
               <SidebarTrigger className="-ml-1" />
               <Separator
                 orientation="vertical"
@@ -51,14 +51,12 @@ async function ChatLayout({ children }: { children: React.ReactNode }) {
               </Breadcrumb>
             </div>
 
-            {/* 🌙 Right-side Theme Switch */}
-            <div className="ml-auto flex items-center gap-2 px-4">
-
-                <ThemeSwitch variant={"link"} />
-
+            {/* ðŸŒ™ Right-side Theme Switch */}
+            <div className="ml-auto flex items-center gap-2">
+              <ThemeSwitch variant={"link"} />
             </div>
           </header>
-          <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
+          <div className="flex flex-1 flex-col gap-4 p-3 pt-0 sm:p-4 sm:pt-0">
             <div className="border-t">
               <div className="p-5">{children}</div>
             </div>

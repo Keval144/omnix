@@ -96,8 +96,8 @@ export function SignupForm() {
   };
 
   return (
-    <Card className="w-full max-w-md backdrop-blur-xl px-3">
-      <CardHeader className="text-center space-y-1">
+    <Card className="mx-auto w-full max-w-md backdrop-blur-xl px-4 py-3 sm:px-6">
+      <CardHeader className="space-y-1 px-0 text-center">
         <CardTitle className="text-3xl mb-2">
           <Link href="/" className="flex items-center justify-center gap-2">
             <Logo size={30} />
@@ -109,7 +109,7 @@ export function SignupForm() {
         <CardDescription>Start building powerful AI workflows</CardDescription>
       </CardHeader>
 
-      <CardContent>
+      <CardContent className="px-0">
         <form onSubmit={handleSignup} className="flex flex-col gap-4">
           {/* Name */}
           <div className="space-y-1.5">
@@ -167,7 +167,7 @@ export function SignupForm() {
 
               <Input
                 type={showPassword ? "text" : "password"}
-                placeholder="••••••••"
+                placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
                 value={password}
                 onChange={(e) => {
                   setPassword(e.target.value);
@@ -229,7 +229,7 @@ export function SignupForm() {
         </div>
       </CardContent>
 
-      <CardFooter className="justify-center text-sm">
+      <CardFooter className="justify-center px-0 text-center text-sm">
         Already have an account?
         <Link
           href="/sign-in"

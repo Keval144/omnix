@@ -1,9 +1,12 @@
-import { cn } from "@/lib/utils";
+import { MenuIcon, XIcon } from "lucide-react";
+import Link from "next/link";
 import React from "react";
-import { Portal, PortalBackdrop } from "@/components/shadcn-ui/portal";
-import { Button } from "@/components/shadcn-ui/button";
+
 import { navLinks } from "@/components/common/header";
-import { XIcon, MenuIcon, Ghost } from "lucide-react";
+import { Button } from "@/components/shadcn-ui/button";
+import { Portal, PortalBackdrop } from "@/components/shadcn-ui/portal";
+import { cn } from "@/lib/utils";
+
 import { ThemeSwitch } from "./common/theme-switch";
 
 export function MobileNav() {
@@ -32,7 +35,7 @@ export function MobileNav() {
           <div
             className={cn(
               "data-[slot=open]:zoom-in-97 ease-out data-[slot=open]:animate-in",
-              "size-full p-4",
+              "size-full overflow-y-auto bg-background/95 p-4 backdrop-blur-sm",
             )}
             data-slot={open ? "open" : "closed"}
           >
@@ -42,19 +45,34 @@ export function MobileNav() {
                   className="justify-start"
                   key={link.label}
                   variant="ghost"
-                  render={<a href={link.href} />}
                   nativeButton={false}
+                  render={
+                    <Link href={link.href} onClick={() => setOpen(false)} />
+                  }
                 >
                   {link.label}
                 </Button>
               ))}
             </div>
-            <ThemeSwitch variant="ghost" />
-            <div className="mt-12 flex flex-col gap-2">
-              <Button className="w-full" variant="outline">
+            <div className="mt-4">
+              <ThemeSwitch variant="ghost" />
+            </div>
+            <div className="mt-8 flex flex-col gap-2">
+              <Button
+                className="w-full"
+                variant="outline"
+                nativeButton={false}
+                render={<Link href="/sign-in" onClick={() => setOpen(false)} />}
+              >
                 Sign In
               </Button>
-              <Button className="w-full">Get Started</Button>
+              <Button
+                className="w-full"
+                nativeButton={false}
+                render={<Link href="/sign-up" onClick={() => setOpen(false)} />}
+              >
+                Get Started
+              </Button>
             </div>
           </div>
         </Portal>

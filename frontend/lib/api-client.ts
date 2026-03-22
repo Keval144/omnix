@@ -84,7 +84,9 @@ export type Project = {
   updated_at: string;
 };
 
-export async function generateNotebook(projectId: string): Promise<NotebookResponse> {
+export async function generateNotebook(
+  projectId: string,
+): Promise<NotebookResponse> {
   const response = await authenticatedFetch("/notebook/generate", {
     method: "POST",
     body: JSON.stringify({ project_id: projectId }),
@@ -94,8 +96,11 @@ export async function generateNotebook(projectId: string): Promise<NotebookRespo
 
 export async function downloadNotebook(notebookPath: string): Promise<Blob> {
   const encodedPath = encodeURIComponent(notebookPath);
-  const response = await authenticatedFetch(`/notebook/download?notebook_path=${encodedPath}`, {
-    method: "GET",
-  });
+  const response = await authenticatedFetch(
+    `/notebook/download?notebook_path=${encodedPath}`,
+    {
+      method: "GET",
+    },
+  );
   return response.blob();
 }

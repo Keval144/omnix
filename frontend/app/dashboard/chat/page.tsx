@@ -13,6 +13,7 @@ import {
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+
 import {
   Avatar,
   AvatarFallback,
@@ -68,8 +69,6 @@ function ChatContent() {
   const [isGeneratingNotebook, setIsGeneratingNotebook] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-
-
   useEffect(() => {
     const fetchProject = async () => {
       if (!projectId) return;
@@ -79,8 +78,8 @@ function ChatContent() {
           `/projects/${projectId}`,
         );
         setProject(data);
-      } catch (e) {
-        console.error(e);
+      } catch (error) {
+        console.error(error);
       } finally {
         setIsLoadingProject(false);
       }
@@ -116,8 +115,8 @@ function ChatContent() {
       }
 
       setMessages((prev) => [...prev, ...res.messages.map(normalizeMessage)]);
-    } catch (e) {
-      console.error(e);
+    } catch (error) {
+      console.error(error);
       toast.error("Failed to send message");
     } finally {
       setIsLoading(false);
@@ -134,8 +133,8 @@ function ChatContent() {
         `/projects/${projectId}`,
       );
       setProject(data);
-    } catch (e) {
-      console.error(e);
+    } catch (error) {
+      console.error(error);
       toast.error("Failed to generate notebook");
     } finally {
       setIsGeneratingNotebook(false);
@@ -154,6 +153,7 @@ function ChatContent() {
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
     } catch (error) {
+      console.error(error);
       toast.error("Failed to download notebook");
     }
   };
@@ -164,10 +164,10 @@ function ChatContent() {
 
   if (!projectId) {
     return (
-      <div className="flex h-[80vh] flex-col items-center justify-center space-y-4">
+      <div className="flex min-h-[60vh] flex-col items-center justify-center space-y-4 px-4 text-center">
         <Bot className="h-16 w-16 text-muted-foreground" />
         <h2 className="text-2xl font-bold">No Project Selected</h2>
-        <p className="text-muted-foreground">
+        <p className="max-w-lg text-muted-foreground">
           Please create or select a project from the dashboard to start
           chatting.
         </p>
@@ -176,9 +176,8 @@ function ChatContent() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-8rem)] gap-4">
-      {/* Sidebar */}
-      <div className="w-64 shrink-0 space-y-4">
+    <div className="flex min-h-[calc(100dvh-9rem)] flex-col gap-4 lg:flex-row">
+      <div className="w-full space-y-4 lg:w-72 lg:shrink-0">
         <Card className="h-full">
           <CardHeader className="pb-3">
             <CardTitle className="text-base">Project Info</CardTitle>
@@ -191,11 +190,11 @@ function ChatContent() {
             ) : project ? (
               <>
                 <div className="space-y-2">
-                  <p className="font-medium text-sm">
+                  <p className="text-sm font-medium break-words">
                     {project.metadata?.name || project.project_slug}
                   </p>
                   {project.metadata?.description && (
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-xs text-muted-foreground break-words">
                       {project.metadata.description}
                     </p>
                   )}
@@ -207,7 +206,7 @@ function ChatContent() {
                   </p>
                   {project.dataset_path ? (
                     <div className="flex items-center gap-2 text-xs text-green-600">
-                      <FileSpreadsheet className="h-3 w-3" />
+                      <FileSpreadsheet className="h-3 w-3 shrink-0" />
                       <span>Uploaded</span>
                     </div>
                   ) : (
@@ -224,11 +223,9 @@ function ChatContent() {
                       variant="outline"
                       size="sm"
                       className="w-full justify-start gap-2 text-xs"
-                      onClick={() => {
-                        if (project.notebook_path) {
-                          handleDownloadNotebook(project.notebook_path);
-                        }
-                      }}
+                      onClick={() =>
+                        handleDownloadNotebook(project.notebook_path!)
+                      }
                     >
                       <Download className="h-3 w-3" />
                       Download Notebook
@@ -262,15 +259,13 @@ function ChatContent() {
         </Card>
       </div>
 
-      {/* Main Chat Area */}
-      <div className="flex flex-1 flex-col rounded-lg border bg-background shadow-sm">
-        {/* Header */}
-        <div className="flex items-center border-b px-6 py-4">
+      <div className="flex min-h-[65vh] flex-1 flex-col overflow-hidden rounded-lg border bg-background shadow-sm">
+        <div className="border-b px-4 py-4 sm:px-6">
           <div className="flex items-center gap-3">
             <div className="rounded-full bg-primary/10 p-2 text-primary">
               <Bot className="h-5 w-5" />
             </div>
-            <div>
+            <div className="min-w-0">
               <h2 className="font-semibold tracking-tight">
                 Project Assistant
               </h2>
@@ -281,11 +276,10 @@ function ChatContent() {
           </div>
         </div>
 
-        {/* Messages */}
-        <ScrollArea className="flex-1 p-4">
+        <ScrollArea className="min-h-0 flex-1 px-4 py-4 sm:px-5">
           <div className="flex flex-col gap-6">
             {messages.length === 0 ? (
-              <div className="flex flex-col items-center justify-center space-y-4 py-20 text-center">
+              <div className="flex flex-col items-center justify-center space-y-4 py-12 text-center sm:py-20">
                 <div className="rounded-full bg-muted p-4">
                   <MessageSquare className="h-8 w-8 text-muted-foreground" />
                 </div>
@@ -293,10 +287,9 @@ function ChatContent() {
                   Send a message to start the conversation
                 </p>
 
-                {/* ML/DL Suggestions */}
                 {project?.dataset_path && (
-                  <div className="space-y-2">
-                    <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                  <div className="w-full max-w-2xl space-y-2">
+                    <p className="flex items-center justify-center gap-1 text-xs font-medium text-muted-foreground">
                       <Sparkles className="h-3 w-3" />
                       Try asking:
                     </p>
@@ -306,7 +299,7 @@ function ChatContent() {
                           key={suggestion}
                           variant="secondary"
                           size="sm"
-                          className="text-xs"
+                          className="max-w-full text-xs whitespace-normal text-left"
                           onClick={() => handleSuggestionClick(suggestion)}
                         >
                           {suggestion}
@@ -322,7 +315,7 @@ function ChatContent() {
                   key={msg.message_id || i}
                   className={`flex gap-3 ${msg.role === "user" ? "flex-row-reverse" : ""}`}
                 >
-                  <Avatar className="h-8 w-8">
+                  <Avatar className="h-8 w-8 shrink-0">
                     {msg.role === "user" ? (
                       <>
                         <AvatarFallback>U</AvatarFallback>
@@ -338,10 +331,10 @@ function ChatContent() {
                     )}
                   </Avatar>
                   <div
-                    className={`flex max-w-[80%] flex-col gap-1 ${msg.role === "user" ? "items-end" : "items-start"}`}
+                    className={`flex min-w-0 max-w-[88%] flex-col gap-1 sm:max-w-[80%] ${msg.role === "user" ? "items-end" : "items-start"}`}
                   >
                     <div
-                      className={`rounded-2xl px-4 py-2.5 text-sm shadow-sm ${
+                      className={`w-full rounded-2xl px-4 py-2.5 text-sm shadow-sm break-words ${
                         msg.role === "user"
                           ? "bg-primary text-primary-foreground"
                           : "bg-muted text-foreground"
@@ -360,13 +353,13 @@ function ChatContent() {
             )}
             {isLoading && (
               <div className="flex gap-3">
-                <Avatar className="h-8 w-8">
+                <Avatar className="h-8 w-8 shrink-0">
                   <AvatarFallback>AI</AvatarFallback>
                   <div className="flex h-full w-full items-center justify-center bg-primary text-primary-foreground">
                     <Bot className="h-4 w-4 text-primary-foreground" />
                   </div>
                 </Avatar>
-                <div className="flex max-w-[80%] flex-col gap-1 items-start">
+                <div className="flex max-w-[88%] flex-col gap-1 sm:max-w-[80%]">
                   <div className="rounded-2xl bg-muted px-4 py-3 shadow-sm">
                     <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                   </div>
@@ -377,23 +370,22 @@ function ChatContent() {
           </div>
         </ScrollArea>
 
-        {/* Input */}
-        <div className="border-t p-4 pb-6">
+        <div className="border-t p-4 sm:p-5">
           <form
             onSubmit={sendMessage}
-            className="mx-auto flex max-w-4xl items-center gap-2"
+            className="mx-auto flex w-full max-w-4xl flex-col gap-3 sm:flex-row sm:items-center"
           >
             <Input
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Type your message..."
-              className="flex-1 rounded-full px-4 border-muted-foreground/20 focus-visible:ring-primary/50"
+              className="min-w-0 flex-1 rounded-full border-muted-foreground/20 px-4 focus-visible:ring-primary/50"
               disabled={isLoading}
             />
             <Button
               type="submit"
               size="icon"
-              className="h-10 w-10 shrink-0 rounded-full transition-transform active:scale-95"
+              className="h-10 w-full shrink-0 rounded-full transition-transform active:scale-95 sm:w-10"
               disabled={isLoading || !input.trim()}
             >
               <Send className="h-4 w-4" />
@@ -410,7 +402,7 @@ export default function ChatPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex h-[80vh] items-center justify-center">
+        <div className="flex h-[60vh] items-center justify-center">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
       }

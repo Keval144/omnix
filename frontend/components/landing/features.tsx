@@ -13,7 +13,6 @@ const features = [
     title: "Zero AI Experience Needed",
     desc: "Works even if you have no AI or ML background. The platform guides you through experimentation and learning.",
   },
-
   {
     num: "03",
     title: "No AI Engineer Required",
@@ -23,28 +22,26 @@ const features = [
 
 export function FeaturesSection() {
   return (
-    <section className="px-6 lg:px-12 py-24 md:py-32">
-      <div className="max-w-6xl mx-auto">
-        {/* Heading */}
+    <section className="px-4 py-20 sm:px-6 md:py-28 lg:px-12">
+      <div className="mx-auto max-w-6xl">
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
-          className="max-w-xl mb-20"
+          className="mb-14 max-w-xl sm:mb-16 md:mb-20"
         >
-          <span className="text-xs font-medium tracking-[0.2em] uppercase text-primary">
+          <span className="text-xs font-medium uppercase tracking-[0.2em] text-primary">
             Features
           </span>
 
-          <h2 className="mt-4 text-3xl md:text-4xl font-light tracking-tight">
+          <h2 className="mt-4 text-3xl font-light tracking-tight sm:text-4xl md:text-5xl">
             Build AI notebooks
             <br />
             <span className="font-medium">without complexity</span>
           </h2>
         </motion.div>
 
-        {/* Feature grid */}
-        <div className="grid md:grid-cols-3 gap-12 md:gap-10">
+        <div className="grid gap-10 sm:gap-12 md:grid-cols-3 md:gap-10">
           {features.map((item, i) => (
             <motion.div
               key={item.num}
@@ -58,11 +55,11 @@ export function FeaturesSection() {
                 {item.num}
               </span>
 
-              <h3 className="mt-3 text-xl font-medium tracking-tight group-hover:text-primary transition-colors">
+              <h3 className="mt-3 text-lg font-medium tracking-tight transition-colors group-hover:text-primary sm:text-xl">
                 {item.title}
               </h3>
 
-              <p className="mt-3 text-muted-foreground leading-relaxed text-sm">
+              <p className="mt-3 max-w-sm text-sm leading-relaxed text-muted-foreground">
                 {item.desc}
               </p>
             </motion.div>

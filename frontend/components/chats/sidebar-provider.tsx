@@ -97,7 +97,7 @@ export default function SidebarWrapperClient({
   return (
     <SidebarProvider defaultOpen={defaultOpen}>
       <Sidebar>
-        <SidebarHeader className="h-16 border-b flex  shrink-0 pt-4 ml-2">
+        <SidebarHeader className="ml-2 flex h-16 shrink-0 border-b pt-4">
           <div className="flex items-center gap-2">
             <Logo size={30} />
             <span className="text-lg font-semibold leading-none tracking-tight">
@@ -107,7 +107,7 @@ export default function SidebarWrapperClient({
         </SidebarHeader>
         <SidebarContent className="flex flex-col gap-0">
           {/* Static Top Links */}
-          <div className="p-2 pl-4 border-b">
+          <div className="border-b p-2 pl-4">
             <SidebarMenu>
               {navItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
@@ -128,7 +128,7 @@ export default function SidebarWrapperClient({
           </div>
 
           {/* New Chat Button */}
-          <div className="p-4 flex flex-col gap-4">
+          <div className="flex flex-col gap-4 p-4">
             <NewChatModal onChatCreated={fetchProjects} />
 
             <div className="relative">

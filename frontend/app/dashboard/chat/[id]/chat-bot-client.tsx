@@ -1,11 +1,12 @@
 "use client";
 
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import rehypeHighlight from "rehype-highlight";
 import { ArrowUpIcon, Bot, Plus, User } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import rehypeHighlight from "rehype-highlight";
+import remarkGfm from "remark-gfm";
+
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,9 +20,9 @@ import {
   InputGroupText,
   InputGroupTextarea,
 } from "@/components/shadcn-ui/input-group";
+import { ScrollArea } from "@/components/shadcn-ui/scroll-area";
 import { Separator } from "@/components/shadcn-ui/separator";
 import { authenticatedJsonFetch } from "@/lib/api-client";
-import { ScrollArea } from "@/components/shadcn-ui/scroll-area";
 
 type BackendMessage = {
   message_id: string;
@@ -169,28 +170,28 @@ export default function ChatBotClient({ chatId }: { chatId?: string }) {
 
     if (isInline) {
       return (
-        <code className="bg-muted rounded px-1 py-0.5 font-mono text-sm">
+        <code className="rounded bg-muted px-1 py-0.5 font-mono text-sm">
           {children}
         </code>
       );
     }
 
     return (
-      <div className="bg-muted/40 text-foreground/90 relative my-3 w-full rounded-lg border p-4 font-mono text-sm">
+      <div className="relative my-3 w-full rounded-lg border bg-muted/40 p-4 font-mono text-sm text-foreground/90">
         <button
           type="button"
           onClick={() => navigator.clipboard.writeText(children)}
-          className="bg-muted text-foreground/70 hover:bg-muted-foreground/10 absolute top-2 right-2 rounded-md px-2 py-1 text-xs transition-colors"
+          className="absolute right-2 top-2 rounded-md bg-muted px-2 py-1 text-xs text-foreground/70 transition-colors hover:bg-muted-foreground/10"
         >
           Copy
         </button>
         {language && language !== "text" && (
-          <div className="absolute top-2 left-2 text-xs text-foreground/50 uppercase">
+          <div className="absolute left-2 top-2 text-xs uppercase text-foreground/50">
             {language}
           </div>
         )}
         <pre
-          className={`overflow-x-auto whitespace-pre-wrap ${language && language !== "text" ? "pt-6" : ""}`}
+          className={`overflow-x-auto whitespace-pre-wrap break-words ${language && language !== "text" ? "pt-6" : ""}`}
         >
           {children}
         </pre>
@@ -209,7 +210,7 @@ export default function ChatBotClient({ chatId }: { chatId?: string }) {
             if (isInline) {
               return (
                 <code
-                  className="bg-muted rounded px-1 py-0.5 font-mono text-sm"
+                  className="rounded bg-muted px-1 py-0.5 font-mono text-sm"
                   {...props}
                 >
                   {children}
@@ -230,31 +231,29 @@ export default function ChatBotClient({ chatId }: { chatId?: string }) {
   }
 
   return (
-    <div className="bg-background flex h-screen flex-col">
-      <div className="flex-1 flex flex-col min-h-0">
-        <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col px-4 py-6">
+    <div className="flex h-full min-h-0 flex-col bg-background">
+      <div className="flex min-h-0 flex-1 flex-col">
+        <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col px-3 py-4 sm:px-4 sm:py-6">
           {!isResolving && messages.length === 0 && (
-            <div className="flex h-64 items-center justify-center text-center">
+            <div className="flex h-56 items-center justify-center px-4 text-center sm:h-64">
               <div className="max-w-md space-y-4">
-                <div className="bg-primary/10 mx-auto flex h-12 w-12 items-center justify-center rounded-full">
-                  <Bot className="text-primary h-6 w-6" />
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
+                  <Bot className="h-6 w-6 text-primary" />
                 </div>
                 <h3 className="text-lg font-medium">Start a conversation</h3>
-                <p className="text-muted-foreground text-sm">
+                <p className="text-sm text-muted-foreground">
                   Ask questions about your data and get an LLM response from the
                   project assistant
                 </p>
               </div>
             </div>
           )}
-          <ScrollArea className="flex-1 min-h-0 overflow-y-auto h-75">
+          <ScrollArea className="h-full min-h-0 flex-1 overflow-y-auto">
             <div className="space-y-6 pb-4">
               {messages.map((msg) => (
                 <div
                   key={msg.id}
-                  className={`flex gap-4 ${
-                    msg.role === "user" ? "flex-row-reverse" : "flex-row"
-                  }`}
+                  className={`flex gap-3 sm:gap-4 ${msg.role === "user" ? "flex-row-reverse" : "flex-row"}`}
                 >
                   <div
                     className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
@@ -271,32 +270,30 @@ export default function ChatBotClient({ chatId }: { chatId?: string }) {
                   </div>
 
                   <div
-                    className={`flex max-w-[80%] flex-col gap-2 ${
+                    className={`flex min-w-0 max-w-[88%] flex-col gap-2 sm:max-w-[80%] ${
                       msg.role === "user" ? "items-end" : "items-start"
                     }`}
                   >
                     <div
-                      className={`rounded-2xl px-4 py-3 ${
+                      className={`w-full rounded-2xl px-4 py-3 break-words ${
                         msg.role === "user"
                           ? "bg-primary text-primary-foreground"
-                          : "bg-muted prose prose-sm dark:prose-invert max-w-none"
+                          : "prose prose-sm max-w-none bg-muted dark:prose-invert"
                       }`}
                     >
-                      <div className="wrap-break-word">
-                        {renderMessageContent(msg.content)}
-                      </div>
+                      {renderMessageContent(msg.content)}
                     </div>
                   </div>
                 </div>
               ))}
 
               {(isPending || isResolving) && (
-                <div className="flex gap-4">
-                  <div className="bg-muted flex h-8 w-8 shrink-0 items-center justify-center rounded-full">
+                <div className="flex gap-3 sm:gap-4">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted">
                     <Bot className="h-4 w-4" />
                   </div>
-                  <div className="flex max-w-[80%] flex-col gap-2">
-                    <div className="bg-muted rounded-2xl px-4 py-3">
+                  <div className="flex max-w-[88%] flex-col gap-2 sm:max-w-[80%]">
+                    <div className="rounded-2xl bg-muted px-4 py-3">
                       <div className="flex items-center gap-2">
                         <div className="flex space-x-1">
                           <div className="h-2 w-2 animate-bounce rounded-full bg-current"></div>
@@ -326,9 +323,9 @@ export default function ChatBotClient({ chatId }: { chatId?: string }) {
         </div>
       </div>
 
-      <div className="bg-background/95 border-t p-4 backdrop-blur">
+      <div className="border-t bg-background/95 p-3 backdrop-blur sm:p-4">
         <div className="mx-auto max-w-4xl">
-          <InputGroup className="h-10 shadow-sm">
+          <InputGroup className="h-auto min-h-10 shadow-sm">
             <InputGroupTextarea
               placeholder="Ask a question about your data..."
               value={inputValue}
@@ -360,8 +357,13 @@ export default function ChatBotClient({ chatId }: { chatId?: string }) {
                 </DropdownMenuContent>
               </DropdownMenu>
 
-              <InputGroupText className="ml-auto">Live</InputGroupText>
-              <Separator orientation="vertical" className="h-4" />
+              <InputGroupText className="ml-auto hidden sm:inline-flex">
+                Live
+              </InputGroupText>
+              <Separator
+                orientation="vertical"
+                className="hidden h-4 sm:block"
+              />
               <InputGroupButton
                 variant="default"
                 className="rounded-full"

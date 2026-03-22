@@ -2,6 +2,8 @@
 
 import { motion } from "framer-motion";
 import { Check } from "lucide-react";
+import Link from "next/link";
+
 import { Button } from "@/components/shadcn-ui/button";
 
 export function FreePricing() {
@@ -13,31 +15,26 @@ export function FreePricing() {
   ];
 
   return (
-    <section className="py-24 px-6">
-      <div className="max-w-5xl mx-auto text-center">
-        {/* Heading */}
-        <h2 className="text-3xl md:text-4xl font-semibold tracking-tight">
+    <section className="px-4 py-20 sm:px-6 md:py-24">
+      <div className="mx-auto max-w-5xl text-center">
+        <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">
           Start Building for Free
         </h2>
-        <p className="text-muted-foreground mt-3">
+        <p className="mt-3 text-muted-foreground">
           Run AI notebooks, experiment with data, and build projects.
         </p>
 
-        {/* Card */}
         <motion.div
           initial={{ opacity: 0, y: 40 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
-          className="mt-12 mx-auto max-w-md rounded-xl border border-border bg-background p-8 shadow-sm"
+          className="mx-auto mt-10 max-w-md rounded-xl border border-border bg-background p-6 shadow-sm sm:mt-12 sm:p-8"
         >
-          {/* Plan */}
           <div className="text-sm text-muted-foreground">Free Plan</div>
 
-          {/* Price */}
-          <div className="mt-2 text-5xl font-semibold">$0</div>
+          <div className="mt-2 text-4xl font-semibold sm:text-5xl">$0</div>
           <div className="text-sm text-muted-foreground">Forever free</div>
 
-          {/* Features */}
           <ul className="mt-8 space-y-3 text-left">
             {features.map((feature) => (
               <li key={feature} className="flex items-center gap-3">
@@ -47,8 +44,13 @@ export function FreePricing() {
             ))}
           </ul>
 
-          {/* CTA */}
-          <Button className="w-full mt-8">Get Started</Button>
+          <Button
+            className="mt-8 w-full"
+            nativeButton={false}
+            render={<Link href="/sign-up" />}
+          >
+            Get Started
+          </Button>
         </motion.div>
       </div>
     </section>

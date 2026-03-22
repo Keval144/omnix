@@ -2,7 +2,15 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from "@/components/shadcn-ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  DialogTrigger,
+} from "@/components/shadcn-ui/dialog";
 import { Button } from "@/components/shadcn-ui/button";
 import { Input } from "@/components/shadcn-ui/input";
 import { Label } from "@/components/shadcn-ui/label";
@@ -11,7 +19,11 @@ import { PlusCircle, Loader2, UploadCloud } from "lucide-react";
 import { toast } from "sonner";
 import { authenticatedFetch } from "@/lib/api-client";
 
-export function NewChatModal({ onChatCreated }: { onChatCreated?: () => void }) {
+export function NewChatModal({
+  onChatCreated,
+}: {
+  onChatCreated?: () => void;
+}) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -71,16 +83,19 @@ export function NewChatModal({ onChatCreated }: { onChatCreated?: () => void }) 
         <PlusCircle className="h-4 w-4" />
         New Chat
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="max-w-[calc(100vw-1.5rem)] sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Create New Chat</DialogTitle>
           <DialogDescription>
-            Start a new conversation thread. You can optionally describe the topic.
+            Start a new conversation thread. You can optionally describe the
+            topic.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 pt-4">
           <div className="space-y-2">
-            <Label htmlFor="name">Chat Name <span className="text-red-500">*</span></Label>
+            <Label htmlFor="name">
+              Chat Name <span className="text-red-500">*</span>
+            </Label>
             <Input
               id="name"
               placeholder="e.g. Sales Analysis DB Queries"
@@ -120,7 +135,12 @@ export function NewChatModal({ onChatCreated }: { onChatCreated?: () => void }) 
             )}
           </div>
           <DialogFooter className="pt-4">
-            <Button type="button" variant="ghost" onClick={() => setOpen(false)} disabled={isLoading}>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setOpen(false)}
+              disabled={isLoading}
+            >
               Cancel
             </Button>
             <Button type="submit" disabled={isLoading || !name.trim()}>

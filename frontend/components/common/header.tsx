@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { cn } from "@/lib/utils";
-import { Logo } from "./logo";
-import { useScroll } from "@/hooks/use-scroll";
-import { Button } from "@/components/shadcn-ui/button";
+
 import { MobileNav } from "@/components/mobile-nav";
+import { Button } from "@/components/shadcn-ui/button";
+import { useScroll } from "@/hooks/use-scroll";
+import { cn } from "@/lib/utils";
+
+import { Logo } from "./logo";
 import { ThemeSwitch } from "./theme-switch";
 
 export const navLinks = [
@@ -20,7 +22,7 @@ export function Header() {
   return (
     <header
       className={cn(
-        "sticky top-0 mt-1.5 z-50 mx-auto w-full max-w-5xl border-transparent border-b md:rounded-md md:border md:transition-all md:ease-out",
+        "sticky top-0 z-50 mx-auto mt-1.5 w-full border-b border-transparent px-2 sm:px-4 md:max-w-5xl md:px-0 md:rounded-md md:border md:transition-all md:ease-out",
         {
           "border-border bg-background/95 backdrop-blur-sm supports-backdrop-filter:bg-background/50 md:top-2 md:max-w-3xl md:shadow":
             scrolled,
@@ -29,7 +31,7 @@ export function Header() {
     >
       <nav
         className={cn(
-          "flex h-14 w-full items-center justify-between px-4 md:h-12 md:transition-all md:ease-out",
+          "flex h-14 w-full items-center justify-between rounded-[inherit] px-3 sm:px-4 md:h-12 md:transition-all md:ease-out",
           {
             "md:px-2": scrolled,
           },
@@ -46,19 +48,33 @@ export function Header() {
         <div className="hidden items-center gap-2 md:flex">
           <div className="flex gap-1">
             {navLinks.map((link) => (
-              <Button key={link.label} size="sm" variant="ghost">
-                <Link href={link.href}>{link.label}</Link>
+              <Button
+                key={link.label}
+                size="sm"
+                variant="ghost"
+                nativeButton={false}
+                render={<Link href={link.href} />}
+              >
+                {link.label}
               </Button>
             ))}
           </div>
-          <ThemeSwitch variant={"ghost"} />
-          <Button size="sm" variant="outline">
-            <Link href={"/sign-in"}>Sign In</Link>
+          <ThemeSwitch variant="ghost" />
+          <Button
+            size="sm"
+            variant="outline"
+            nativeButton={false}
+            render={<Link href="/sign-in" />}
+          >
+            Sign In
           </Button>
 
-          <Button size="sm">
-            {" "}
-            <Link href={"/sign-up"}>Get Started</Link>
+          <Button
+            size="sm"
+            nativeButton={false}
+            render={<Link href="/sign-up" />}
+          >
+            Get Started
           </Button>
         </div>
 
