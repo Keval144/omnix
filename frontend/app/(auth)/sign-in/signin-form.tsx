@@ -132,7 +132,7 @@ export function SigninForm() {
 
               <Input
                 type={showPassword ? "text" : "password"}
-                placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
+                placeholder="password"
                 value={password}
                 onChange={(e) => {
                   setPassword(e.target.value);
