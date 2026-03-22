@@ -26,22 +26,30 @@ class ChatService:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
 
         chat_session = await self._get_or_create_session(project.project_id, session_id)
-        user_message = ChatMessage(session_id=chat_session.session_id, role=ChatRole.USER, content=content)
         
-        dataset_context = await self._get_dataset_context(project.project_id)
-        response_content = await self._generate_response(content, dataset_context)
+        dataset_task = self._get_dataset_context(project.project_id)
+        
+        user_message = ChatMessage(session_id=chat_session.session_id, role=ChatRole.USER, content=content)
+        self.session.add(user_message)
+        await self.session.flush()
+        
+        dataset_context, response_content = await self._get_dataset_context_and_generate(
+            project.project_id, content
+        )
         
         assistant_message = ChatMessage(
             session_id=chat_session.session_id,
             role=ChatRole.ASSISTANT,
             content=response_content,
         )
-        self.session.add_all([user_message, assistant_message])
+        self.session.add(assistant_message)
         await self.session.commit()
-        await self.session.refresh(chat_session)
-        await self.session.refresh(user_message)
-        await self.session.refresh(assistant_message)
         return chat_session, user_message, assistant_message
+
+    async def _get_dataset_context_and_generate(self, project_id: UUID, content: str) -> tuple[Dataset | None, str]:
+        dataset = await self._get_dataset_context(project_id)
+        response = await self._generate_response(content, dataset)
+        return dataset, response
 
     async def _get_dataset_context(self, project_id: UUID) -> Dataset | None:
         return await self.session.scalar(select(Dataset).where(Dataset.project_id == project_id))

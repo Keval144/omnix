@@ -19,10 +19,11 @@ def _build_slug() -> str:
     return "-".join(random.sample(_ADJECTIVES, 2) + random.sample(_NOUNS, 2))
 
 
-async def generate_project_slug(session: AsyncSession, max_attempts: int = 20) -> str:
-    for _ in range(max_attempts):
-        candidate = _build_slug()
-        exists = await session.scalar(select(Project.project_id).where(Project.project_slug == candidate).limit(1))
-        if not exists:
-            return candidate
-    raise RuntimeError("Could not generate a unique project slug")
+async def generate_project_slug(session: AsyncSession, batch_size: int = 10) -> str:
+    existing_slugs = set((await session.scalars(select(Project.project_slug))).all())
+    while True:
+        candidates = [_build_slug() for _ in range(batch_size)]
+        available = [c for c in candidates if c not in existing_slugs]
+        if available:
+            return available[0]
+        existing_slugs.update(candidates)
