@@ -96,36 +96,34 @@ export function SignupForm() {
   };
 
   return (
-    <Card className="mx-auto w-full max-w-md backdrop-blur-xl px-4 py-3 sm:px-6">
-      <CardHeader className="space-y-1 px-0 text-center">
-        <CardTitle className="text-3xl mb-2">
-          <Link href="/" className="flex items-center justify-center gap-2">
-            <Logo size={30} />
-            <span>Omnix</span>
-          </Link>
-        </CardTitle>
+    <Card className="mx-auto w-full max-w-md border-border/40 bg-card/80 shadow-xl shadow-black/10 backdrop-blur-2xl">
+      <CardHeader className="space-y-1 text-center pb-6">
+        <div className="flex items-center justify-center gap-2 mb-1">
+          <Logo size={28} />
+          <span className="text-2xl font-bold tracking-tight">Omnix</span>
+        </div>
 
-        <CardTitle>Create your account</CardTitle>
-        <CardDescription>Start building powerful AI workflows</CardDescription>
+        <CardTitle className="text-xl font-semibold">Create your account</CardTitle>
+        <CardDescription className="text-sm">Start building powerful AI workflows</CardDescription>
       </CardHeader>
 
-      <CardContent className="px-0">
+      <CardContent className="pb-6">
         <form onSubmit={handleSignup} className="flex flex-col gap-4">
           {/* Name */}
           <div className="space-y-1.5">
-            <Label>Name</Label>
+            <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Name</Label>
 
             <div className="relative">
-              <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 opacity-60" />
+              <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
 
               <Input
-                placeholder="John Doe"
+                placeholder="Your Name"
                 value={name}
                 onChange={(e) => {
                   setName(e.target.value);
                   setErrors((prev) => ({ ...prev, name: undefined }));
                 }}
-                className="pl-9"
+                className="pl-10 py-2 bg-background/60 border-border/60 focus:border-primary/60"
               />
             </div>
 
@@ -136,10 +134,10 @@ export function SignupForm() {
 
           {/* Email */}
           <div className="space-y-1.5">
-            <Label>Email</Label>
+            <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Email</Label>
 
             <div className="relative">
-              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 opacity-60" />
+              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
 
               <Input
                 type="email"
@@ -149,7 +147,7 @@ export function SignupForm() {
                   setEmail(e.target.value);
                   setErrors((prev) => ({ ...prev, email: undefined }));
                 }}
-                className="pl-9"
+                className="pl-10 py-2 bg-background/60 border-border/60 focus:border-primary/60"
               />
             </div>
 
@@ -160,10 +158,10 @@ export function SignupForm() {
 
           {/* Password */}
           <div className="space-y-1.5">
-            <Label>Password</Label>
+            <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Password</Label>
 
             <div className="relative">
-              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 opacity-60" />
+              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
 
               <Input
                 type={showPassword ? "text" : "password"}
@@ -173,13 +171,13 @@ export function SignupForm() {
                   setPassword(e.target.value);
                   setErrors((prev) => ({ ...prev, password: undefined }));
                 }}
-                className="pl-9 pr-10"
+                className="pl-10 pr-10 py-2 bg-background/60 border-border/60 focus:border-primary/60"
               />
 
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 opacity-60 hover:opacity-100"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
               >
                 {showPassword ? (
                   <EyeOff className="w-4 h-4" />
@@ -193,7 +191,7 @@ export function SignupForm() {
               <p className="text-xs text-red-500">{errors.password}</p>
             )}
 
-            <p className="text-xs text-muted-foreground">
+            <p className="text-[11px] text-muted-foreground">
               At least 8 characters
             </p>
           </div>
@@ -201,7 +199,7 @@ export function SignupForm() {
           <Button
             type="submit"
             disabled={loading}
-            className="w-full flex items-center gap-2"
+            className="w-full py-2 font-medium shadow-md shadow-primary/20"
           >
             {loading && <Loader2 className="w-4 h-4 animate-spin" />}
             Create Account
@@ -209,34 +207,36 @@ export function SignupForm() {
         </form>
 
         {/* Divider */}
-        <div className="flex items-center gap-3 my-6">
-          <Separator className="flex-1" />
-          <span className="text-xs text-muted-foreground">OR</span>
-          <Separator className="flex-1" />
+        <div className="flex items-center gap-3 my-5">
+          <Separator className="flex-1 bg-border/40" />
+          <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-widest">Or continue with</span>
+          <Separator className="flex-1 bg-border/40" />
         </div>
 
         {/* Social */}
         <div className="flex flex-col gap-2">
-          <Button variant="outline" className="w-full gap-2">
+          <Button variant="outline" className="w-full py-2 border-border/60 bg-background/40 hover:bg-background/70 transition-colors">
             <Chrome className="w-4 h-4" />
             Continue with Google
           </Button>
 
-          <Button variant="outline" className="w-full gap-2">
+          <Button variant="outline" className="w-full py-2 border-border/60 bg-background/40 hover:bg-background/70 transition-colors">
             <Github className="w-4 h-4" />
             Continue with GitHub
           </Button>
         </div>
       </CardContent>
 
-      <CardFooter className="justify-center px-0 text-center text-sm">
-        Already have an account?
-        <Link
-          href="/sign-in"
-          className="ml-1 font-medium text-emerald-500 hover:underline"
-        >
-          Sign in
-        </Link>
+      <CardFooter className="justify-center border-t border-border/40 bg-muted/20 py-4">
+        <p className="text-xs text-muted-foreground">
+          Already have an account?{" "}
+          <Link
+            href="/sign-in"
+            className="font-medium text-primary hover:underline"
+          >
+            Sign in
+          </Link>
+        </p>
       </CardFooter>
     </Card>
   );

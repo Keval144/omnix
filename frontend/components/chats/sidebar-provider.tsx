@@ -97,8 +97,8 @@ export default function SidebarWrapperClient({
   return (
     <SidebarProvider defaultOpen={defaultOpen}>
       <Sidebar>
-        <SidebarHeader className="ml-2 flex h-16 shrink-0 border-b pt-4">
-          <div className="flex items-center gap-2">
+        <SidebarHeader className=" flex h-16 shrink-0 border-b pt-4">
+          <div className="flex items-center gap-2 pt-2 pl-3">
             <Logo size={30} />
             <span className="text-lg font-semibold leading-none tracking-tight">
               Omnix
@@ -116,7 +116,7 @@ export default function SidebarWrapperClient({
                   >
                     <Link
                       href={item.url}
-                      className="flex items-center gap-2 ml-1"
+                      className="flex items-center gap-2 cursor-pointer"
                     >
                       <item.icon className="h-4 w-4" />
                       <span>{item.title}</span>
@@ -129,7 +129,7 @@ export default function SidebarWrapperClient({
 
           {/* New Chat Button */}
           <div className="flex flex-col gap-4 p-4">
-            <NewChatModal onChatCreated={fetchProjects} />
+            <NewChatModal onChatCreated={fetchProjects}  />
 
             <div className="relative">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -217,7 +217,7 @@ export default function SidebarWrapperClient({
 
                 {/* Dropdown */}
                 <DropdownMenuContent
-                  side="right"
+                  side="top"
                   className="w-60 rounded-xl border shadow-lg p-1"
                 >
                   {/* User Info */}

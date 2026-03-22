@@ -191,7 +191,7 @@ export default function ChatBotClient({ chatId }: { chatId?: string }) {
           </div>
         )}
         <pre
-          className={`overflow-x-auto whitespace-pre-wrap break-words ${language && language !== "text" ? "pt-6" : ""}`}
+          className={`overflow-x-auto whitespace-pre-wrap wrap-break-word ${language && language !== "text" ? "pt-6" : ""}`}
         >
           {children}
         </pre>
@@ -232,10 +232,10 @@ export default function ChatBotClient({ chatId }: { chatId?: string }) {
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-background">
-      <div className="flex min-h-0 flex-1 flex-col">
-        <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col px-3 py-4 sm:px-4 sm:py-6">
+      <div className="mx-auto flex w-full flex-1 min-h-0 flex-col px-3 py-4 sm:px-4 sm:py-6">
+        <ScrollArea className="flex-1 min-h-0">
           {!isResolving && messages.length === 0 && (
-            <div className="flex h-56 items-center justify-center px-4 text-center sm:h-64">
+            <div className="flex h-full min-h-75 items-center justify-center px-4 text-center">
               <div className="max-w-md space-y-4">
                 <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
                   <Bot className="h-6 w-6 text-primary" />
@@ -248,82 +248,80 @@ export default function ChatBotClient({ chatId }: { chatId?: string }) {
               </div>
             </div>
           )}
-          <ScrollArea className="h-full min-h-0 flex-1 overflow-y-auto">
-            <div className="space-y-6 pb-4">
-              {messages.map((msg) => (
+          <div className="space-y-6 pb-4">
+            {messages.map((msg) => (
+              <div
+                key={msg.id}
+                className={`flex gap-3 sm:gap-4 ${msg.role === "user" ? "flex-row-reverse" : "flex-row"}`}
+              >
                 <div
-                  key={msg.id}
-                  className={`flex gap-3 sm:gap-4 ${msg.role === "user" ? "flex-row-reverse" : "flex-row"}`}
+                  className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
+                    msg.role === "user"
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-muted"
+                  }`}
+                >
+                  {msg.role === "user" ? (
+                    <User className="h-4 w-4" />
+                  ) : (
+                    <Bot className="h-4 w-4" />
+                  )}
+                </div>
+
+                <div
+                  className={`flex min-w-0 max-w-[88%] flex-col gap-2 sm:max-w-[80%] ${
+                    msg.role === "user" ? "items-end" : "items-start"
+                  }`}
                 >
                   <div
-                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
+                    className={`w-full rounded-2xl px-4 py-3 wrap-break-word ${
                       msg.role === "user"
                         ? "bg-primary text-primary-foreground"
-                        : "bg-muted"
+                        : "prose prose-sm max-w-none bg-muted dark:prose-invert"
                     }`}
                   >
-                    {msg.role === "user" ? (
-                      <User className="h-4 w-4" />
-                    ) : (
-                      <Bot className="h-4 w-4" />
-                    )}
-                  </div>
-
-                  <div
-                    className={`flex min-w-0 max-w-[88%] flex-col gap-2 sm:max-w-[80%] ${
-                      msg.role === "user" ? "items-end" : "items-start"
-                    }`}
-                  >
-                    <div
-                      className={`w-full rounded-2xl px-4 py-3 break-words ${
-                        msg.role === "user"
-                          ? "bg-primary text-primary-foreground"
-                          : "prose prose-sm max-w-none bg-muted dark:prose-invert"
-                      }`}
-                    >
-                      {renderMessageContent(msg.content)}
-                    </div>
+                    {renderMessageContent(msg.content)}
                   </div>
                 </div>
-              ))}
+              </div>
+            ))}
 
-              {(isPending || isResolving) && (
-                <div className="flex gap-3 sm:gap-4">
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted">
-                    <Bot className="h-4 w-4" />
-                  </div>
-                  <div className="flex max-w-[88%] flex-col gap-2 sm:max-w-[80%]">
-                    <div className="rounded-2xl bg-muted px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <div className="flex space-x-1">
-                          <div className="h-2 w-2 animate-bounce rounded-full bg-current"></div>
-                          <div
-                            className="h-2 w-2 animate-bounce rounded-full bg-current"
-                            style={{ animationDelay: "0.1s" }}
-                          ></div>
-                          <div
-                            className="h-2 w-2 animate-bounce rounded-full bg-current"
-                            style={{ animationDelay: "0.2s" }}
-                          ></div>
-                        </div>
-                        <span className="text-sm">
-                          {isResolving
-                            ? "Loading chat..."
-                            : "Generating response..."}
-                        </span>
+            {(isPending || isResolving) && (
+              <div className="flex gap-3 sm:gap-4">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted">
+                  <Bot className="h-4 w-4" />
+                </div>
+                <div className="flex max-w-[88%] flex-col gap-2 sm:max-w-[80%]">
+                  <div className="rounded-2xl bg-muted px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <div className="flex space-x-1">
+                        <div className="h-2 w-2 animate-bounce rounded-full bg-current"></div>
+                        <div
+                          className="h-2 w-2 animate-bounce rounded-full bg-current"
+                          style={{ animationDelay: "0.1s" }}
+                        ></div>
+                        <div
+                          className="h-2 w-2 animate-bounce rounded-full bg-current"
+                          style={{ animationDelay: "0.2s" }}
+                        ></div>
                       </div>
+                      <span className="text-sm">
+                        {isResolving
+                          ? "Loading chat..."
+                          : "Generating response..."}
+                      </span>
                     </div>
                   </div>
                 </div>
-              )}
+              </div>
+            )}
 
-              <div ref={messagesEndRef} />
-            </div>
-          </ScrollArea>
-        </div>
+            <div ref={messagesEndRef} />
+          </div>
+        </ScrollArea>
       </div>
 
-      <div className="border-t bg-background/95 p-3 backdrop-blur sm:p-4">
+      <div className="shrink-0 border-t bg-background/95 p-3 backdrop-blur sm:p-4">
         <div className="mx-auto max-w-4xl">
           <InputGroup className="h-auto min-h-10 shadow-sm">
             <InputGroupTextarea

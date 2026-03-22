@@ -176,9 +176,10 @@ function ChatContent() {
   }
 
   return (
-    <div className="flex min-h-[calc(100dvh-9rem)] flex-col gap-4 lg:flex-row">
+    <div className="flex h-full min-h-0 flex-col gap-4 lg:flex-row  py-2 pt-4">
+
       <div className="w-full space-y-4 lg:w-72 lg:shrink-0">
-        <Card className="h-full">
+        <Card className="h-full border">
           <CardHeader className="pb-3">
             <CardTitle className="text-base">Project Info</CardTitle>
           </CardHeader>
@@ -190,11 +191,11 @@ function ChatContent() {
             ) : project ? (
               <>
                 <div className="space-y-2">
-                  <p className="text-sm font-medium break-words">
+                  <p className="text-sm font-medium wrap-break-word">
                     {project.metadata?.name || project.project_slug}
                   </p>
                   {project.metadata?.description && (
-                    <p className="text-xs text-muted-foreground break-words">
+                    <p className="text-xs text-muted-foreground wrap-break-word">
                       {project.metadata.description}
                     </p>
                   )}
@@ -259,7 +260,7 @@ function ChatContent() {
         </Card>
       </div>
 
-      <div className="flex min-h-[65vh] flex-1 flex-col overflow-hidden rounded-lg border bg-background shadow-sm">
+      <div className="flex flex-1 min-h-0 flex-col rounded-lg border bg-background shadow-sm">
         <div className="border-b px-4 py-4 sm:px-6">
           <div className="flex items-center gap-3">
             <div className="rounded-full bg-primary/10 p-2 text-primary">
@@ -334,7 +335,7 @@ function ChatContent() {
                     className={`flex min-w-0 max-w-[88%] flex-col gap-1 sm:max-w-[80%] ${msg.role === "user" ? "items-end" : "items-start"}`}
                   >
                     <div
-                      className={`w-full rounded-2xl px-4 py-2.5 text-sm shadow-sm break-words ${
+                      className={`w-full rounded-2xl px-4 py-2.5 text-sm shadow-sm wrap-break-word ${
                         msg.role === "user"
                           ? "bg-primary text-primary-foreground"
                           : "bg-muted text-foreground"
@@ -370,7 +371,7 @@ function ChatContent() {
           </div>
         </ScrollArea>
 
-        <div className="border-t p-4 sm:p-5">
+        <div className="pt-4 p-4 sm:p-5">
           <form
             onSubmit={sendMessage}
             className="mx-auto flex w-full max-w-4xl flex-col gap-3 sm:flex-row sm:items-center"
@@ -394,6 +395,7 @@ function ChatContent() {
           </form>
         </div>
       </div>
+
     </div>
   );
 }

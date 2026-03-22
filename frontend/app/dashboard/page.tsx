@@ -154,7 +154,7 @@ export default function DashboardPage() {
   const usedSlots = projects.length;
 
   return (
-    <div className="flex-1 space-y-6 p-4 pt-4 sm:p-6 sm:pt-6 lg:p-8">
+    <div className="flex-1 min-h-0 space-y-6 overflow-y-auto p-4 pt-4 sm:p-6 sm:pt-6 lg:p-8">
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">
           Dashboard
