@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import {
   Sidebar,
@@ -143,7 +143,7 @@ export default function SidebarWrapperClient({
             </div>
           </div>
 
-          <ScrollArea className="flex-1 px-4">
+          <ScrollArea className="min-h-0 flex-1 px-4">
             <div className="flex flex-col gap-1 pb-4">
               <span className="text-xs font-medium text-muted-foreground px-2 py-1 uppercase tracking-wider">
                 Recent Chats

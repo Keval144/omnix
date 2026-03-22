@@ -132,7 +132,7 @@ export function SigninForm() {
 
               <Input
                 type={showPassword ? "text" : "password"}
-                placeholder="password"
+                placeholder="Password"
                 value={password}
                 onChange={(e) => {
                   setPassword(e.target.value);
@@ -191,7 +191,7 @@ export function SigninForm() {
       </CardContent>
 
       <CardFooter className="justify-center px-0 text-center text-sm">
-        Donâ€™t have an account?
+        Don’t have an account?
         <Link
           href="/sign-up"
           className="ml-1 font-medium text-emerald-500 hover:underline"

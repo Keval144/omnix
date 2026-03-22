@@ -167,7 +167,7 @@ export function SignupForm() {
 
               <Input
                 type={showPassword ? "text" : "password"}
-                placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
+                placeholder="Password"
                 value={password}
                 onChange={(e) => {
                   setPassword(e.target.value);
