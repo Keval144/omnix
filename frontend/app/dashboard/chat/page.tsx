@@ -32,6 +32,7 @@ import {
   authenticatedJsonFetch,
   downloadNotebook,
   generateNotebook,
+  getChatHistory,
   type Project,
 } from "@/lib/api-client";
 
@@ -48,6 +49,16 @@ function normalizeMessage(message: Message): Message {
     ...message,
     role: message.role.toLowerCase() === "user" ? "user" : "assistant",
   };
+}
+
+function sortMessages(messages: Message[]): Message[] {
+  return [...messages].sort((a, b) => {
+    const timeA = new Date(a.created_at).getTime();
+    const timeB = new Date(b.created_at).getTime();
+    if (timeA !== timeB) return timeA - timeB;
+    if (a.role !== b.role) return a.role === "user" ? -1 : 1;
+    return a.message_id.localeCompare(b.message_id);
+  });
 }
 
 const ML_SUGGESTIONS = [
@@ -67,7 +78,12 @@ function ChatContent() {
   const [project, setProject] = useState<Project | null>(null);
   const [isLoadingProject, setIsLoadingProject] = useState(false);
   const [isGeneratingNotebook, setIsGeneratingNotebook] = useState(false);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [cursor, setCursor] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const isInitialLoad = useRef(true);
 
   useEffect(() => {
     const fetchProject = async () => {
@@ -86,6 +102,62 @@ function ChatContent() {
     };
     fetchProject();
   }, [projectId]);
+
+  useEffect(() => {
+    if (!projectId) return;
+
+    isInitialLoad.current = true;
+    setMessages([]);
+    setCursor(null);
+    setHasMore(false);
+
+    const fetchHistory = async () => {
+      setIsLoadingHistory(true);
+      try {
+        const data = await getChatHistory(projectId, undefined, 20);
+        const normalized = sortMessages(data.items.map(normalizeMessage).reverse());
+        setMessages(normalized);
+        setCursor(data.next_cursor);
+        setHasMore(data.has_more);
+        if (data.items.length > 0 && data.items[0].session_id) {
+          setSessionId(data.items[0].session_id);
+        }
+      } catch (error) {
+        console.error("Failed to load chat history:", error);
+      } finally {
+        setIsLoadingHistory(false);
+        isInitialLoad.current = false;
+      }
+    };
+
+    fetchHistory();
+  }, [projectId]);
+
+  const loadMoreMessages = async () => {
+    if (!projectId || !cursor || isLoadingHistory) return;
+
+    setIsLoadingHistory(true);
+    try {
+      const data = await getChatHistory(projectId, cursor, 20);
+      const normalized = sortMessages(data.items.map(normalizeMessage).reverse());
+      setMessages((prev) => [...normalized, ...prev]);
+      setCursor(data.next_cursor);
+      setHasMore(data.has_more);
+    } catch (error) {
+      console.error("Failed to load more messages:", error);
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
+
+  const handleScroll = () => {
+    if (!scrollContainerRef.current || isInitialLoad.current) return;
+
+    const { scrollTop } = scrollContainerRef.current;
+    if (scrollTop < 100 && hasMore && !isLoadingHistory) {
+      loadMoreMessages();
+    }
+  };
 
   const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -114,7 +186,7 @@ function ChatContent() {
         setSessionId(res.session_id);
       }
 
-      setMessages((prev) => [...prev, ...res.messages.map(normalizeMessage)]);
+      setMessages((prev) => [...prev, ...sortMessages(res.messages.map(normalizeMessage))]);
     } catch (error) {
       console.error(error);
       toast.error("Failed to send message");
@@ -277,9 +349,17 @@ function ChatContent() {
           </div>
         </div>
 
-        <ScrollArea className="min-h-0 flex-1 px-4 py-4 sm:px-5">
+        <ScrollArea 
+          className="min-h-0 flex-1 px-4 py-4 sm:px-5" 
+          ref={scrollContainerRef}
+          onScroll={handleScroll}
+        >
           <div className="flex flex-col gap-6">
-            {messages.length === 0 ? (
+            {isLoadingHistory && messages.length === 0 ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : messages.length === 0 ? (
               <div className="flex flex-col items-center justify-center space-y-4 py-12 text-center sm:py-20">
                 <div className="rounded-full bg-muted p-4">
                   <MessageSquare className="h-8 w-8 text-muted-foreground" />
@@ -311,46 +391,56 @@ function ChatContent() {
                 )}
               </div>
             ) : (
-              messages.map((msg, i) => (
-                <div
-                  key={msg.message_id || i}
-                  className={`flex gap-3 ${msg.role === "user" ? "flex-row-reverse" : ""}`}
-                >
-                  <Avatar className="h-8 w-8 shrink-0">
-                    {msg.role === "user" ? (
-                      <>
-                        <AvatarFallback>U</AvatarFallback>
-                        <AvatarImage src="/assets/pfp.jpg" />
-                      </>
-                    ) : (
-                      <>
-                        <AvatarFallback>AI</AvatarFallback>
-                        <div className="flex h-full w-full items-center justify-center bg-primary text-primary-foreground">
-                          <Bot className="h-4 w-4" />
-                        </div>
-                      </>
-                    )}
-                  </Avatar>
-                  <div
-                    className={`flex min-w-0 max-w-[88%] flex-col gap-1 sm:max-w-[80%] ${msg.role === "user" ? "items-end" : "items-start"}`}
-                  >
-                    <div
-                      className={`w-full rounded-2xl px-4 py-2.5 text-sm shadow-sm wrap-break-word ${
-                        msg.role === "user"
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-muted text-foreground"
-                      }`}
-                    >
-                      {msg.content}
-                    </div>
-                    <span className="text-[10px] text-muted-foreground">
-                      {msg.created_at
-                        ? new Date(msg.created_at).toLocaleTimeString()
-                        : "Now"}
+              <>
+                {isLoadingHistory && hasMore && (
+                  <div className="flex items-center justify-center py-2">
+                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                    <span className="ml-2 text-xs text-muted-foreground">
+                      Loading older messages...
                     </span>
                   </div>
-                </div>
-              ))
+                )}
+                {messages.map((msg, i) => (
+                  <div
+                    key={msg.message_id || i}
+                    className={`flex gap-3 ${msg.role === "user" ? "flex-row-reverse" : ""}`}
+                  >
+                    <Avatar className="h-8 w-8 shrink-0">
+                      {msg.role === "user" ? (
+                        <>
+                          <AvatarFallback>U</AvatarFallback>
+                          <AvatarImage src="/assets/pfp.jpg" />
+                        </>
+                      ) : (
+                        <>
+                          <AvatarFallback>AI</AvatarFallback>
+                          <div className="flex h-full w-full items-center justify-center bg-primary text-primary-foreground">
+                            <Bot className="h-4 w-4" />
+                          </div>
+                        </>
+                      )}
+                    </Avatar>
+                    <div
+                      className={`flex min-w-0 max-w-[88%] flex-col gap-1 sm:max-w-[80%] ${msg.role === "user" ? "items-end" : "items-start"}`}
+                    >
+                      <div
+                        className={`w-full rounded-2xl px-4 py-2.5 text-sm shadow-sm wrap-break-word ${
+                          msg.role === "user"
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-muted text-foreground"
+                        }`}
+                      >
+                        {msg.content}
+                      </div>
+                      <span className="text-[10px] text-muted-foreground">
+                        {msg.created_at
+                          ? new Date(msg.created_at).toLocaleTimeString()
+                          : "Now"}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </>
             )}
             {isLoading && (
               <div className="flex gap-3">

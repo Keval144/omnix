@@ -52,17 +52,16 @@ class ChatService:
                 context = self._build_context_from_dataset(dataset)
                 full_prompt = f"""You are a data analysis assistant. Use the following dataset information to answer user questions.
 
-Dataset Information:
-{context}
+                                Dataset Information:
+                                {context}
+                                User Question: {prompt}
 
-User Question: {prompt}
-
-Provide a helpful, human-like response based on the dataset above."""
+                                Provide a helpful, human-like response based on the dataset above."""
                 system_prompt = "You are a data analysis assistant. Use the provided dataset information to answer user questions helpfully."
             else:
                 full_prompt = f"""You are a helpful data analysis assistant. Answer the user's question in a conversational way.
 
-User Question: {prompt}"""
+                                User Question: {prompt}"""
                 system_prompt = "You are a helpful data analysis assistant."
 
             return await generate_async(full_prompt, system_prompt)
@@ -137,3 +136,16 @@ User Question: {prompt}"""
         self.session.add(session)
         await self.session.flush()
         return session
+
+    async def get_messages_by_project(self, project_id: UUID, user_id: str, limit: int, cursor: UUID | None) -> tuple[list[ChatMessage], UUID | None, bool]:
+        project = await self.project_service.get_project_for_user(project_id, user_id)
+        if not project:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+
+        chat_session = await self.session.scalar(
+            select(ChatSession).where(ChatSession.project_id == project_id)
+        )
+        if not chat_session:
+            return [], None, False
+
+        return await self.get_messages(chat_session.session_id, user_id, limit, cursor)

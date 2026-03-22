@@ -104,3 +104,31 @@ export async function downloadNotebook(notebookPath: string): Promise<Blob> {
   );
   return response.blob();
 }
+
+export type ChatMessageResponse = {
+  message_id: string;
+  session_id: string;
+  role: "user" | "assistant";
+  content: string;
+  created_at: string;
+};
+
+export type ChatHistoryResponse = {
+  items: ChatMessageResponse[];
+  next_cursor: string | null;
+  has_more: boolean;
+};
+
+export async function getChatHistory(
+  projectId: string,
+  cursor?: string,
+  limit: number = 20,
+): Promise<ChatHistoryResponse> {
+  const params = new URLSearchParams({ project_id: projectId });
+  if (cursor) params.set("cursor", cursor);
+  params.set("limit", limit.toString());
+
+  return authenticatedJsonFetch<ChatHistoryResponse>(
+    `/chat/history?${params.toString()}`,
+  );
+}

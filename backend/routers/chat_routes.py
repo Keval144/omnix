@@ -58,3 +58,21 @@ async def get_session(
 ) -> ChatSessionResponse:
     chat_session = await ChatService(session).get_session(session_id, current_user.user_id)
     return ChatSessionResponse.model_validate(chat_session)
+
+
+@router.get("/history", response_model=ChatMessagePage)
+async def get_chat_history(
+    project_id: UUID,
+    cursor: UUID | None = Query(default=None),
+    limit: int = Query(default=DEFAULT_CHAT_PAGE_SIZE, ge=1, le=100),
+    session: AsyncSession = Depends(get_db_session),
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> ChatMessagePage:
+    items, next_cursor, has_more = await ChatService(session).get_messages_by_project(
+        project_id, current_user.user_id, limit, cursor
+    )
+    return ChatMessagePage(
+        items=[ChatMessageResponse.model_validate(item) for item in items],
+        next_cursor=next_cursor,
+        has_more=has_more,
+    )

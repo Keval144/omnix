@@ -30,7 +30,7 @@ async function DashboardLayout({
   const safeUser = {
     name: user?.name ?? "",
     email: user?.email ?? "",
-    avatar: user?.image ?? "/assets/pfp.jpg",
+    avatar: user?.image ?? "/pfp.jpg",
   };
 
   return (
