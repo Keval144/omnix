@@ -12,7 +12,7 @@ from routers.chat_routes import router as chat_router
 from routers.dataset_routes import router as dataset_router
 from routers.notebook_routes import router as notebook_router
 from routers.project_routes import router as project_router
-from routers.rag_routes import router as rag_router
+
 
 logging.basicConfig(
     level=logging.INFO,
@@ -79,19 +79,7 @@ app.include_router(project_router, prefix=settings.api_v1_prefix)
 app.include_router(dataset_router, prefix=settings.api_v1_prefix)
 app.include_router(notebook_router, prefix=settings.api_v1_prefix)
 app.include_router(chat_router, prefix=settings.api_v1_prefix)
-app.include_router(rag_router, prefix=settings.api_v1_prefix)
-
 
 @app.head("/")
 async def root() -> dict[str, str]:
     return {"message": "Backend is running"}
-
-
-@app.get("/debug/storage")
-async def debug_storage():
-    from utils.storage import build_dataset_directory
-    return {
-        "storage_root": str(settings.storage_root),
-        "data_storage_url_prefix": settings.data_storage_url_prefix,
-        "example_dataset_path": build_dataset_directory("test-user", "test-project"),
-    }

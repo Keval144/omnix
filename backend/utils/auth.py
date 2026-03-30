@@ -1,4 +1,5 @@
 from typing import Any
+from datetime import datetime, timedelta
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -19,6 +20,10 @@ DEV_USER_EMAIL = "dev@omnix.local"
 
 security = HTTPBearer()
 
+_jwks_cache: dict | None = None
+_jwks_cache_time: datetime | None = None
+JWKS_CACHE_TTL = timedelta(hours=1)
+
 
 class AuthenticatedUser(BaseModel):
     user_id: str
@@ -26,12 +31,26 @@ class AuthenticatedUser(BaseModel):
 
 
 async def _get_jwks() -> dict:
+    global _jwks_cache, _jwks_cache_time
+    
+    if _jwks_cache and _jwks_cache_time and datetime.now() - _jwks_cache_time < JWKS_CACHE_TTL:
+        return _jwks_cache
+    
     if not settings.better_auth_jwks_url:
         return {}
+    
     async with httpx.AsyncClient() as client:
         response = await client.get(settings.better_auth_jwks_url)
         response.raise_for_status()
-        return response.json()
+        _jwks_cache = response.json()
+        _jwks_cache_time = datetime.now()
+        return _jwks_cache
+
+
+def clear_jwks_cache() -> None:
+    global _jwks_cache, _jwks_cache_time
+    _jwks_cache = None
+    _jwks_cache_time = None
 
 
 async def _validate_token(token: str) -> dict[str, Any]:

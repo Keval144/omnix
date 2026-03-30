@@ -18,6 +18,9 @@ import { Textarea } from "@/components/shadcn-ui/textarea";
 import { PlusCircle, Loader2, UploadCloud } from "lucide-react";
 import { toast } from "sonner";
 import { authenticatedFetch } from "@/lib/api-client";
+import useSWR from "swr";
+
+const fetcher = () => authenticatedFetch("/projects").then((res) => res.json());
 
 export function NewChatModal({
   onChatCreated,
@@ -30,6 +33,8 @@ export function NewChatModal({
   const [file, setFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
+
+  const { mutate } = useSWR("projects", fetcher);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -67,7 +72,7 @@ export function NewChatModal({
       setDescription("");
       setFile(null);
       if (onChatCreated) onChatCreated();
-      router.refresh();
+      mutate();
       router.push(`/dashboard/chat?project_id=${project.project_id}`);
     } catch (error) {
       console.error(error);

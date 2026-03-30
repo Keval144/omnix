@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from llm.iflow_client import IFlowClient
 from models.dataset import Dataset
 from models.notebook import Notebook
+from prompts.notebook_prompts import NOTEBOOK_SECTIONS, build_notebook_prompt
 from services.dataset_analyzer import analyze_dataset_file
 from services.project_service import ProjectService
 from services.rag_service import retrieve_ml_context
@@ -84,39 +85,7 @@ class NotebookService:
         rag_context = retrieve_ml_context(dataset_info)
         file_name = Path(resolved_dataset_path).name
 
-        prompt = f"""
-                        You are a senior machine learning engineer.
-
-                        Generate a Kaggle-style machine learning notebook.
-
-                        Machine Learning Knowledge:
-                        {rag_context}
-
-                        Dataset Information:
-                        {dataset_info}
-
-                        Dataset filename:
-                        {file_name}
-
-                        Return ONLY valid JSON with the following structure:
-
-                        {{
-                        "imports": "",
-                        "data_loading": "",
-                        "eda": "",
-                        "preprocessing": "",
-                        "feature_engineering": "",
-                        "train_test_split": "",
-                        "model_training": "",
-                        "evaluation": "",
-                        "visualization": ""
-                        }}
-
-                        Rules:
-                        - Return JSON only
-                        - Do not include explanations
-                        - Only Python code inside the fields
-        """
+        prompt = build_notebook_prompt(rag_context, dataset_info, file_name)
 
         try:
             response = IFlowClient.generate(prompt)
@@ -124,30 +93,18 @@ class NotebookService:
         except (RuntimeError, json.JSONDecodeError):
             sections = NotebookService._build_fallback_sections(resolved_dataset_path, dataset_info)
 
+        return NotebookService._build_notebook_cells(file_name, sections)
+
+    @staticmethod
+    def _build_notebook_cells(file_name: str, sections: dict) -> nbformat.Notebook:
         notebook = nbformat.v4.new_notebook()
-        notebook["cells"] = [
-            nbformat.v4.new_markdown_cell(
-                f"# Omnix AI Generated Notebook\n\nDataset: **{file_name}**"
-            ),
-            nbformat.v4.new_markdown_cell("## Import Libraries"),
-            nbformat.v4.new_code_cell(sections.get("imports", "")),
-            nbformat.v4.new_markdown_cell("## Load Dataset"),
-            nbformat.v4.new_code_cell(sections.get("data_loading", "")),
-            nbformat.v4.new_markdown_cell("## Exploratory Data Analysis"),
-            nbformat.v4.new_code_cell(sections.get("eda", "")),
-            nbformat.v4.new_markdown_cell("## Data Preprocessing"),
-            nbformat.v4.new_code_cell(sections.get("preprocessing", "")),
-            nbformat.v4.new_markdown_cell("## Feature Engineering"),
-            nbformat.v4.new_code_cell(sections.get("feature_engineering", "")),
-            nbformat.v4.new_markdown_cell("## Train Test Split"),
-            nbformat.v4.new_code_cell(sections.get("train_test_split", "")),
-            nbformat.v4.new_markdown_cell("## Model Training"),
-            nbformat.v4.new_code_cell(sections.get("model_training", "")),
-            nbformat.v4.new_markdown_cell("## Model Evaluation"),
-            nbformat.v4.new_code_cell(sections.get("evaluation", "")),
-            nbformat.v4.new_markdown_cell("## Visualization"),
-            nbformat.v4.new_code_cell(sections.get("visualization", "")),
-        ]
+        cells = [nbformat.v4.new_markdown_cell(f"# Omnix AI Generated Notebook\n\nDataset: **{file_name}**")]
+        
+        for section in NOTEBOOK_SECTIONS:
+            cells.append(nbformat.v4.new_markdown_cell(f"## {section['title']}"))
+            cells.append(nbformat.v4.new_code_cell(sections.get(section["key"], "")))
+        
+        notebook["cells"] = cells
         return notebook
 
     @staticmethod

@@ -78,7 +78,7 @@ export default function SidebarWrapperClient({
 
   useEffect(() => {
     fetchProjects();
-  }, [pathname]); // Refresh when navigating
+  }, [pathname]);
 
   const navItems = [
     { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
@@ -129,7 +129,7 @@ export default function SidebarWrapperClient({
 
           {/* New Chat Button */}
           <div className="flex flex-col gap-4 p-4">
-            <NewChatModal onChatCreated={fetchProjects}  />
+            <NewChatModal onChatCreated={fetchProjects} />
 
             <div className="relative">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -162,14 +162,15 @@ export default function SidebarWrapperClient({
                   {filteredProjects.map((p) => {
                     const itemName =
                       p.metadata?.name || p.project_slug || "Untitled Chat";
+
                     return (
-                      <SidebarMenuItem key={p.project_id}>
+                      <SidebarMenuItem key={p.project_id} className="mb-1">
                         <SidebarMenuButton
                           isActive={
                             pathname === "/dashboard/chat" &&
                             currentProjectId === p.project_id
                           }
-                          className="h-9"
+                          className="h-7.5 px-2"
                         >
                           <Link
                             href={`/dashboard/chat?project_id=${p.project_id}`}

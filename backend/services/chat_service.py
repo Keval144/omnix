@@ -3,6 +3,7 @@ from uuid import UUID
 
 from fastapi import HTTPException, status
 from sqlalchemy import Select, select
+from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from constants import MAX_CHAT_PAGE_SIZE
@@ -10,6 +11,7 @@ from llm.iflow_client import generate_async
 from models.chat import ChatMessage, ChatRole, ChatSession
 from models.dataset import Dataset
 from models.project import Project
+from prompts.chat_prompts import build_chat_prompt
 from services.project_service import ProjectService
 
 logger = logging.getLogger(__name__)
@@ -56,22 +58,11 @@ class ChatService:
 
     async def _generate_response(self, prompt: str, dataset: Dataset | None) -> str:
         try:
+            context = None
             if dataset and dataset.summary:
                 context = self._build_context_from_dataset(dataset)
-                full_prompt = f"""You are a data analysis assistant. Use the following dataset information to answer user questions.
-
-                                Dataset Information:
-                                {context}
-                                User Question: {prompt}
-
-                                Provide a helpful, human-like response based on the dataset above."""
-                system_prompt = "You are a data analysis assistant. Use the provided dataset information to answer user questions helpfully."
-            else:
-                full_prompt = f"""You are a helpful data analysis assistant. Answer the user's question in a conversational way.
-
-                                User Question: {prompt}"""
-                system_prompt = "You are a helpful data analysis assistant."
-
+            
+            full_prompt, system_prompt = build_chat_prompt(prompt, context)
             return await generate_async(full_prompt, system_prompt)
         except Exception as e:
             logger.error(f"Error generating response: {str(e)}", exc_info=True)
@@ -108,7 +99,11 @@ class ChatService:
         if not session:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chat session not found")
 
-        stmt: Select[tuple[ChatMessage]] = select(ChatMessage).where(ChatMessage.session_id == session_id)
+        stmt: Select[tuple[ChatMessage]] = (
+            select(ChatMessage)
+            .where(ChatMessage.session_id == session_id)
+            .order_by(ChatMessage.created_at.desc(), ChatMessage.message_id.desc())
+        )
 
         if cursor:
             cursor_message = await self.session.scalar(select(ChatMessage).where(ChatMessage.message_id == cursor))

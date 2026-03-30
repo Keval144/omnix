@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 import { signUpSchema } from "@/lib/validation/auth";
 import { authClient } from "@/lib/auth/client";
@@ -31,11 +32,13 @@ import {
   Loader2,
   Github,
   Chrome,
+  BadgeCheck,
 } from "lucide-react";
 
 import { Logo } from "@/components/common/logo";
 
 export function SignupForm() {
+  const router = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -87,21 +90,19 @@ export function SignupForm() {
       return;
     }
 
-    toast.success("Account created ");
-
-    setName("");
-    setEmail("");
-    setPassword("");
-    setLoading(false);
+    toast.success("Account created");
+    router.push("/dashboard");
   };
+
+  const lastMethod = authClient.getLastUsedLoginMethod();
 
   return (
     <Card className="mx-auto w-full max-w-md border-border/40 bg-card/80 shadow-xl shadow-black/10 backdrop-blur-2xl">
       <CardHeader className="space-y-1 text-center pb-6">
-        <div className="flex items-center justify-center gap-2 mb-1">
+        <Link href="/" className="flex items-center justify-center gap-2 mb-1 hover:opacity-80 transition-opacity">
           <Logo size={28} />
           <span className="text-2xl font-bold tracking-tight">Omnix</span>
-        </div>
+        </Link>
 
         <CardTitle className="text-xl font-semibold">Create your account</CardTitle>
         <CardDescription className="text-sm">Start building powerful AI workflows</CardDescription>
@@ -215,14 +216,22 @@ export function SignupForm() {
 
         {/* Social */}
         <div className="flex flex-col gap-2">
-          <Button variant="outline" className="w-full py-2 border-border/60 bg-background/40 hover:bg-background/70 transition-colors">
+          <Button 
+            variant="outline" 
+            className={`w-full py-2 border-border/60 bg-background/40 hover:bg-background/70 transition-colors ${lastMethod === 'google' ? 'border-primary/50 ring-1 ring-primary/20' : ''}`}
+          >
             <Chrome className="w-4 h-4" />
             Continue with Google
+            {lastMethod === 'google' && <BadgeCheck className="w-4 h-4 ml-auto text-primary" />}
           </Button>
 
-          <Button variant="outline" className="w-full py-2 border-border/60 bg-background/40 hover:bg-background/70 transition-colors">
+          <Button 
+            variant="outline" 
+            className={`w-full py-2 border-border/60 bg-background/40 hover:bg-background/70 transition-colors ${lastMethod === 'github' ? 'border-primary/50 ring-1 ring-primary/20' : ''}`}
+          >
             <Github className="w-4 h-4" />
             Continue with GitHub
+            {lastMethod === 'github' && <BadgeCheck className="w-4 h-4 ml-auto text-primary" />}
           </Button>
         </div>
       </CardContent>

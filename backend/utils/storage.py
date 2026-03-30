@@ -63,16 +63,18 @@ def build_public_storage_path(kind: str, user_id: str, project_slug: str, filena
 
 def resolve_storage_path(path: str) -> str:
     path_obj = Path(path)
+    
     if path_obj.is_absolute() and path_obj.exists():
         return str(path_obj)
 
     normalized = path.replace("\\", "/")
     prefix = settings.data_storage_url_prefix.rstrip("/")
+    
     if prefix and normalized.startswith(prefix):
-        normalized = normalized[len(prefix):]
-
-    normalized = normalized.lstrip("/")
-    if normalized.startswith(f"{DATASETS_DIRNAME}/") or normalized.startswith(f"{NOTEBOOKS_DIRNAME}/"):
+        normalized = normalized[len(prefix):].lstrip("/")
+    
+    path_parts = Path(normalized).parts
+    if path_parts and path_parts[0] in (DATASETS_DIRNAME, NOTEBOOKS_DIRNAME):
         return str((settings.storage_root / normalized).resolve())
 
     return str(path_obj)

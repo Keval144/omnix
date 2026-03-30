@@ -1,8 +1,9 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { lastLoginMethod } from "better-auth/plugins";
 import { authPlugins } from "@/lib/auth/plugins";
 import { db } from "@/lib/db";
-import * as schema from "@/schema";
+import * as schema from "@/drizzle/schema";
 
 export const createAuth = () => {
   const googleClientId = process.env.GOOGLE_CLIENT_ID;
@@ -17,6 +18,7 @@ export const createAuth = () => {
     }),
     emailAndPassword: {
       enabled: true,
+      autoSignIn: true,
     },
     socialProviders: {
       ...(googleClientId && googleClientSecret
@@ -36,7 +38,7 @@ export const createAuth = () => {
           }
         : {}),
     },
-    plugins: authPlugins,
+    plugins: [lastLoginMethod(), ...authPlugins],
   });
 };
 

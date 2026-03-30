@@ -1,5 +1,10 @@
 "use client";
 
+import { useState, useRef, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import {
   Bot,
   Download,
@@ -10,56 +15,16 @@ import {
   Send,
   Sparkles,
 } from "lucide-react";
-import { useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from "@/components/shadcn-ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/shadcn-ui/avatar";
 import { Button } from "@/components/shadcn-ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/shadcn-ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/shadcn-ui/card";
 import { Input } from "@/components/shadcn-ui/input";
 import { ScrollArea } from "@/components/shadcn-ui/scroll-area";
-import {
-  authenticatedJsonFetch,
-  downloadNotebook,
-  generateNotebook,
-  getChatHistory,
-  type Project,
-} from "@/lib/api-client";
-
-type Message = {
-  message_id: string;
-  session_id: string;
-  role: "USER" | "ASSISTANT" | "user" | "assistant";
-  content: string;
-  created_at: string;
-};
-
-function normalizeMessage(message: Message): Message {
-  return {
-    ...message,
-    role: message.role.toLowerCase() === "user" ? "user" : "assistant",
-  };
-}
-
-function sortMessages(messages: Message[]): Message[] {
-  return [...messages].sort((a, b) => {
-    const timeA = new Date(a.created_at).getTime();
-    const timeB = new Date(b.created_at).getTime();
-    if (timeA !== timeB) return timeA - timeB;
-    if (a.role !== b.role) return a.role === "user" ? -1 : 1;
-    return a.message_id.localeCompare(b.message_id);
-  });
-}
+import { LoadingSpinner, EmptyState } from "@/components/ui/loading-spinner";
+import { useChat, useProject, generateNotebookAction, downloadFile } from "@/lib/hooks";
+import { handleApiError } from "@/lib/errors";
 
 const ML_SUGGESTIONS = [
   "What ML models can I use for this data?",
@@ -71,421 +36,389 @@ const ML_SUGGESTIONS = [
 function ChatContent() {
   const searchParams = useSearchParams();
   const projectId = searchParams.get("project_id");
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
+  const chatKey = `chat-${projectId || "no-project"}`;
+  
+  const { project, isLoading: isLoadingProject, refresh: refreshProject } = useProject(projectId);
+  const { messages, isLoading, isLoadingHistory, hasMore, loadMore, sendMessage } = useChat(projectId);
+  
   const [input, setInput] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [project, setProject] = useState<Project | null>(null);
-  const [isLoadingProject, setIsLoadingProject] = useState(false);
-  const [isGeneratingNotebook, setIsGeneratingNotebook] = useState(false);
-  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
-  const [hasMore, setHasMore] = useState(false);
-  const [cursor, setCursor] = useState<string | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const isInitialLoad = useRef(true);
 
   useEffect(() => {
-    const fetchProject = async () => {
-      if (!projectId) return;
-      setIsLoadingProject(true);
-      try {
-        const data = await authenticatedJsonFetch<Project>(
-          `/projects/${projectId}`,
-        );
-        setProject(data);
-      } catch (error) {
-        console.error(error);
-      } finally {
-        setIsLoadingProject(false);
-      }
+    const handleScroll = () => {
+      if (!scrollContainerRef.current || !hasMore || isLoadingHistory) return;
+      const { scrollTop } = scrollContainerRef.current;
+      if (scrollTop < 100) loadMore();
     };
-    fetchProject();
-  }, [projectId]);
+    scrollContainerRef.current?.addEventListener("scroll", handleScroll);
+    return () => scrollContainerRef.current?.removeEventListener("scroll", handleScroll);
+  }, [hasMore, isLoadingHistory, loadMore]);
 
-  useEffect(() => {
-    if (!projectId) return;
-
-    isInitialLoad.current = true;
-    setMessages([]);
-    setCursor(null);
-    setHasMore(false);
-
-    const fetchHistory = async () => {
-      setIsLoadingHistory(true);
-      try {
-        const data = await getChatHistory(projectId, undefined, 20);
-        const normalized = sortMessages(data.items.map(normalizeMessage).reverse());
-        setMessages(normalized);
-        setCursor(data.next_cursor);
-        setHasMore(data.has_more);
-        if (data.items.length > 0 && data.items[0].session_id) {
-          setSessionId(data.items[0].session_id);
-        }
-      } catch (error) {
-        console.error("Failed to load chat history:", error);
-      } finally {
-        setIsLoadingHistory(false);
-        isInitialLoad.current = false;
-      }
-    };
-
-    fetchHistory();
-  }, [projectId]);
-
-  const loadMoreMessages = async () => {
-    if (!projectId || !cursor || isLoadingHistory) return;
-
-    setIsLoadingHistory(true);
-    try {
-      const data = await getChatHistory(projectId, cursor, 20);
-      const normalized = sortMessages(data.items.map(normalizeMessage).reverse());
-      setMessages((prev) => [...normalized, ...prev]);
-      setCursor(data.next_cursor);
-      setHasMore(data.has_more);
-    } catch (error) {
-      console.error("Failed to load more messages:", error);
-    } finally {
-      setIsLoadingHistory(false);
-    }
-  };
-
-  const handleScroll = () => {
-    if (!scrollContainerRef.current || isInitialLoad.current) return;
-
-    const { scrollTop } = scrollContainerRef.current;
-    if (scrollTop < 100 && hasMore && !isLoadingHistory) {
-      loadMoreMessages();
-    }
-  };
-
-  const sendMessage = async (e: React.FormEvent) => {
+  const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || !projectId) return;
-
-    const userMsg = input.trim();
+    if (!input.trim()) return;
+    const msg = input.trim();
     setInput("");
-    setIsLoading(true);
-
-    try {
-      const payload = {
-        project_id: projectId,
-        content: userMsg,
-        ...(sessionId ? { session_id: sessionId } : {}),
-      };
-
-      const res = await authenticatedJsonFetch<{
-        session_id: string;
-        messages: Message[];
-      }>("/chat/message", {
-        method: "POST",
-        body: JSON.stringify(payload),
-      });
-
-      if (!sessionId) {
-        setSessionId(res.session_id);
-      }
-
-      setMessages((prev) => [...prev, ...sortMessages(res.messages.map(normalizeMessage))]);
-    } catch (error) {
-      console.error(error);
-      toast.error("Failed to send message");
-    } finally {
-      setIsLoading(false);
-    }
+    await sendMessage(msg);
   };
 
   const handleGenerateNotebook = async () => {
     if (!projectId) return;
-    setIsGeneratingNotebook(true);
+    setIsGenerating(true);
     try {
-      await generateNotebook(projectId);
+      await generateNotebookAction(projectId);
       toast.success("Notebook generated successfully!");
-      const data = await authenticatedJsonFetch<Project>(
-        `/projects/${projectId}`,
-      );
-      setProject(data);
+      refreshProject();
     } catch (error) {
-      console.error(error);
-      toast.error("Failed to generate notebook");
+      handleApiError(error, "Failed to generate notebook");
     } finally {
-      setIsGeneratingNotebook(false);
+      setIsGenerating(false);
     }
   };
 
-  const handleDownloadNotebook = async (notebookPath: string) => {
+  const handleDownload = async (path: string) => {
     try {
-      const blob = await downloadNotebook(notebookPath);
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = notebookPath.split("/").pop() || "notebook.ipynb";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error(error);
-      toast.error("Failed to download notebook");
+      await downloadFile(path);
+    } catch {
+      // Error handled in downloadFile
     }
-  };
-
-  const handleSuggestionClick = (suggestion: string) => {
-    setInput(suggestion);
   };
 
   if (!projectId) {
     return (
-      <div className="flex min-h-[60vh] flex-col items-center justify-center space-y-4 px-4 text-center">
-        <Bot className="h-16 w-16 text-muted-foreground" />
-        <h2 className="text-2xl font-bold">No Project Selected</h2>
-        <p className="max-w-lg text-muted-foreground">
-          Please create or select a project from the dashboard to start
-          chatting.
-        </p>
-      </div>
+      <EmptyState
+        icon={Bot}
+        title="No Project Selected"
+        description="Please create or select a project from the dashboard to start chatting."
+      />
     );
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-4 lg:flex-row  py-2 pt-4">
+    <div className="flex h-full min-h-0 flex-col gap-4 py-2 pt-4 lg:flex-row">
+      <ProjectSidebar
+        project={project}
+        isLoading={isLoadingProject}
+        isGenerating={isGenerating}
+        onGenerateNotebook={handleGenerateNotebook}
+        onDownload={handleDownload}
+      />
 
-      <div className="w-full space-y-4 lg:w-72 lg:shrink-0">
-        <Card className="h-full border">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Project Info</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {isLoadingProject ? (
-              <div className="flex justify-center py-4">
-                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-              </div>
-            ) : project ? (
-              <>
-                <div className="space-y-2">
-                  <p className="text-sm font-medium wrap-break-word">
-                    {project.metadata?.name || project.project_slug}
-                  </p>
-                  {project.metadata?.description && (
-                    <p className="text-xs text-muted-foreground wrap-break-word">
-                      {project.metadata.description}
-                    </p>
-                  )}
-                </div>
+      <ChatArea
+        input={input}
+        onInputChange={setInput}
+        onSubmit={handleSend}
+        isLoading={isLoading}
+        isLoadingHistory={isLoadingHistory}
+        hasMore={hasMore}
+        messages={messages}
+        hasDataset={!!project?.dataset_path}
+        scrollContainerRef={scrollContainerRef}
+        scrollRef={scrollRef}
+      />
+    </div>
+  );
+}
 
-                <div className="space-y-2">
-                  <p className="text-xs font-medium text-muted-foreground">
-                    Dataset
-                  </p>
-                  {project.dataset_path ? (
-                    <div className="flex items-center gap-2 text-xs text-green-600">
-                      <FileSpreadsheet className="h-3 w-3 shrink-0" />
-                      <span>Uploaded</span>
-                    </div>
-                  ) : (
-                    <p className="text-xs text-muted-foreground">No dataset</p>
-                  )}
-                </div>
-
-                <div className="space-y-2">
-                  <p className="text-xs font-medium text-muted-foreground">
-                    Notebook
-                  </p>
-                  {project.notebook_path ? (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full justify-start gap-2 text-xs"
-                      onClick={() =>
-                        handleDownloadNotebook(project.notebook_path!)
-                      }
-                    >
-                      <Download className="h-3 w-3" />
-                      Download Notebook
-                    </Button>
-                  ) : project.dataset_path ? (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full justify-start gap-2 text-xs"
-                      disabled={isGeneratingNotebook}
-                      onClick={handleGenerateNotebook}
-                    >
-                      {isGeneratingNotebook ? (
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                      ) : (
-                        <FileCode className="h-3 w-3" />
-                      )}
-                      Generate Notebook
-                    </Button>
-                  ) : (
-                    <p className="text-xs text-muted-foreground">
-                      Upload dataset first
-                    </p>
-                  )}
-                </div>
-              </>
-            ) : (
-              <p className="text-xs text-muted-foreground">No project found</p>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="flex flex-1 min-h-0 flex-col rounded-lg border bg-background shadow-sm">
-        <div className="border-b px-4 py-4 sm:px-6">
-          <div className="flex items-center gap-3">
-            <div className="rounded-full bg-primary/10 p-2 text-primary">
-              <Bot className="h-5 w-5" />
-            </div>
-            <div className="min-w-0">
-              <h2 className="font-semibold tracking-tight">
-                Project Assistant
-              </h2>
-              <p className="text-xs text-muted-foreground">
-                Ask anything about your dataset
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <ScrollArea 
-          className="min-h-0 flex-1 px-4 py-4 sm:px-5" 
-          ref={scrollContainerRef}
-          onScroll={handleScroll}
-        >
-          <div className="flex flex-col gap-6">
-            {isLoadingHistory && messages.length === 0 ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              </div>
-            ) : messages.length === 0 ? (
-              <div className="flex flex-col items-center justify-center space-y-4 py-12 text-center sm:py-20">
-                <div className="rounded-full bg-muted p-4">
-                  <MessageSquare className="h-8 w-8 text-muted-foreground" />
-                </div>
-                <p className="text-muted-foreground">
-                  Send a message to start the conversation
+function ProjectSidebar({
+  project,
+  isLoading,
+  isGenerating,
+  onGenerateNotebook,
+  onDownload,
+}: {
+  project?: { metadata?: { name?: string; description?: string }; dataset_path: string | null; notebook_path: string | null } | null;
+  isLoading: boolean;
+  isGenerating: boolean;
+  onGenerateNotebook: () => void;
+  onDownload: (path: string) => void;
+}) {
+  return (
+    <div className="w-full space-y-4 lg:w-72 lg:shrink-0">
+      <Card className="h-full border">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Project Info</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {isLoading ? (
+            <LoadingSpinner size="sm" />
+          ) : project ? (
+            <>
+              <div className="space-y-2">
+                <p className="text-sm font-medium wrap-break-word">
+                  {project.metadata?.name || "Untitled"}
                 </p>
-
-                {project?.dataset_path && (
-                  <div className="w-full max-w-2xl space-y-2">
-                    <p className="flex items-center justify-center gap-1 text-xs font-medium text-muted-foreground">
-                      <Sparkles className="h-3 w-3" />
-                      Try asking:
-                    </p>
-                    <div className="flex flex-wrap justify-center gap-2">
-                      {ML_SUGGESTIONS.map((suggestion) => (
-                        <Button
-                          key={suggestion}
-                          variant="secondary"
-                          size="sm"
-                          className="max-w-full text-xs whitespace-normal text-left"
-                          onClick={() => handleSuggestionClick(suggestion)}
-                        >
-                          {suggestion}
-                        </Button>
-                      ))}
-                    </div>
-                  </div>
+                {project.metadata?.description && (
+                  <p className="text-xs text-muted-foreground wrap-break-word">
+                    {project.metadata.description}
+                  </p>
                 )}
               </div>
-            ) : (
-              <>
-                {isLoadingHistory && hasMore && (
-                  <div className="flex items-center justify-center py-2">
-                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                    <span className="ml-2 text-xs text-muted-foreground">
-                      Loading older messages...
-                    </span>
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-muted-foreground">Dataset</p>
+                {project.dataset_path ? (
+                  <div className="flex items-center gap-2 text-xs text-green-600">
+                    <FileSpreadsheet className="h-3 w-3 shrink-0" />
+                    <span>Uploaded</span>
                   </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground">No dataset</p>
                 )}
-                {messages.map((msg, i) => (
-                  <div
-                    key={msg.message_id || i}
-                    className={`flex gap-3 ${msg.role === "user" ? "flex-row-reverse" : ""}`}
+              </div>
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-muted-foreground">Notebook</p>
+                {project.notebook_path ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full justify-start gap-2 text-xs"
+                    onClick={() => onDownload(project.notebook_path!)}
                   >
-                    <Avatar className="h-8 w-8 shrink-0">
-                      {msg.role === "user" ? (
-                        <>
-                          <AvatarFallback>U</AvatarFallback>
-                          <AvatarImage src="/assets/pfp.jpg" />
-                        </>
-                      ) : (
-                        <>
-                          <AvatarFallback>AI</AvatarFallback>
-                          <div className="flex h-full w-full items-center justify-center bg-primary text-primary-foreground">
-                            <Bot className="h-4 w-4" />
-                          </div>
-                        </>
-                      )}
-                    </Avatar>
-                    <div
-                      className={`flex min-w-0 max-w-[88%] flex-col gap-1 sm:max-w-[80%] ${msg.role === "user" ? "items-end" : "items-start"}`}
-                    >
-                      <div
-                        className={`w-full rounded-2xl px-4 py-2.5 text-sm shadow-sm wrap-break-word ${
-                          msg.role === "user"
-                            ? "bg-primary text-primary-foreground"
-                            : "bg-muted text-foreground"
-                        }`}
-                      >
-                        {msg.content}
-                      </div>
-                      <span className="text-[10px] text-muted-foreground">
-                        {msg.created_at
-                          ? new Date(msg.created_at).toLocaleTimeString()
-                          : "Now"}
-                      </span>
+                    <Download className="h-3 w-3" />
+                    Download Notebook
+                  </Button>
+                ) : project.dataset_path ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full justify-start gap-2 text-xs"
+                    disabled={isGenerating}
+                    onClick={onGenerateNotebook}
+                  >
+                    {isGenerating ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <FileCode className="h-3 w-3" />
+                    )}
+                    Generate Notebook
+                  </Button>
+                ) : (
+                  <p className="text-xs text-muted-foreground">Upload dataset first</p>
+                )}
+              </div>
+            </>
+          ) : (
+            <p className="text-xs text-muted-foreground">No project found</p>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function ChatArea({
+  input,
+  onInputChange,
+  onSubmit,
+  isLoading,
+  isLoadingHistory,
+  hasMore,
+  messages,
+  hasDataset,
+  scrollContainerRef,
+  scrollRef,
+}: {
+  input: string;
+  onInputChange: (v: string) => void;
+  onSubmit: (e: React.FormEvent) => void;
+  isLoading: boolean;
+  isLoadingHistory: boolean;
+  hasMore: boolean;
+  messages: { message_id: string; role: "user" | "assistant"; content: string; created_at: string }[];
+  hasDataset: boolean;
+  scrollContainerRef: React.RefObject<HTMLDivElement | null>;
+  scrollRef: React.RefObject<HTMLDivElement | null>;
+}) {
+  return (
+    <div className="flex flex-1 min-h-0 flex-col rounded-lg border bg-background shadow-sm">
+      <ChatHeader />
+      
+      <ScrollArea 
+        className="min-h-0 flex-1 px-4 py-4 sm:px-5" 
+        ref={scrollContainerRef}
+      >
+        <div className="flex flex-col gap-6">
+          {isLoadingHistory && messages.length === 0 ? (
+            <LoadingSpinner />
+          ) : messages.length === 0 ? (
+            <EmptyStateWithSuggestions hasDataset={hasDataset} />
+          ) : (
+            <>
+              {isLoadingHistory && hasMore && (
+                <LoadingSpinner size="sm" text="Loading older messages..." />
+              )}
+              {messages.map((msg) => (
+                <ChatMessage key={msg.message_id} message={msg} />
+              ))}
+              {isLoading && (
+                <div className="flex gap-3">
+                  <Avatar className="h-8 w-8 shrink-0">
+                    <AvatarFallback>AI</AvatarFallback>
+                    <div className="flex h-full w-full items-center justify-center bg-primary text-primary-foreground">
+                      <Bot className="h-4 w-4" />
                     </div>
-                  </div>
-                ))}
-              </>
-            )}
-            {isLoading && (
-              <div className="flex gap-3">
-                <Avatar className="h-8 w-8 shrink-0">
-                  <AvatarFallback>AI</AvatarFallback>
-                  <div className="flex h-full w-full items-center justify-center bg-primary text-primary-foreground">
-                    <Bot className="h-4 w-4 text-primary-foreground" />
-                  </div>
-                </Avatar>
-                <div className="flex max-w-[88%] flex-col gap-1 sm:max-w-[80%]">
-                  <div className="rounded-2xl bg-muted px-4 py-3 shadow-sm">
-                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  </Avatar>
+                  <div className="flex max-w-[88%] flex-col gap-1 sm:max-w-[80%]">
+                    <div className="rounded-2xl bg-muted px-4 py-3">
+                      <div className="flex items-center gap-1">
+                        <span className="text-xs text-muted-foreground">Thinking</span>
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
-            <div ref={scrollRef} />
-          </div>
-        </ScrollArea>
+              )}
+            </>
+          )}
+          <div ref={scrollRef} />
+        </div>
+      </ScrollArea>
 
-        <div className="pt-4 p-4 sm:p-5">
-          <form
-            onSubmit={sendMessage}
-            className="mx-auto flex w-full max-w-4xl flex-col gap-3 sm:flex-row sm:items-center"
-          >
-            <Input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Type your message..."
-              className="min-w-0 flex-1 rounded-full border-muted-foreground/20 px-4 focus-visible:ring-primary/50"
-              disabled={isLoading}
-            />
-            <Button
-              type="submit"
-              size="icon"
-              className="h-10 w-full shrink-0 rounded-full transition-transform active:scale-95 sm:w-10"
-              disabled={isLoading || !input.trim()}
-            >
-              <Send className="h-4 w-4" />
-              <span className="sr-only">Send</span>
-            </Button>
-          </form>
+      <ChatInput
+        value={input}
+        onChange={onInputChange}
+        onSubmit={onSubmit}
+        disabled={isLoading}
+      />
+    </div>
+  );
+}
+
+function ChatHeader() {
+  return (
+    <div className="border-b px-4 py-4 sm:px-6">
+      <div className="flex items-center gap-3">
+        <div className="rounded-full bg-primary/10 p-2 text-primary">
+          <Bot className="h-5 w-5" />
+        </div>
+        <div className="min-w-0">
+          <h2 className="font-semibold tracking-tight">Project Assistant</h2>
+          <p className="text-xs text-muted-foreground">Ask anything about your dataset</p>
         </div>
       </div>
+    </div>
+  );
+}
 
+function EmptyStateWithSuggestions({ hasDataset }: { hasDataset: boolean }) {
+  return (
+    <EmptyState
+      icon={MessageSquare}
+      title="Send a message to start the conversation"
+      action={
+        hasDataset && (
+          <div className="w-full max-w-2xl space-y-2">
+            <p className="flex items-center justify-center gap-1 text-xs font-medium text-muted-foreground">
+              <Sparkles className="h-3 w-3" />
+              Try asking:
+            </p>
+            <div className="flex flex-wrap justify-center gap-2">
+              {ML_SUGGESTIONS.map((suggestion) => (
+                <Button
+                  key={suggestion}
+                  variant="secondary"
+                  size="sm"
+                  className="max-w-full text-xs whitespace-normal text-left"
+                >
+                  {suggestion}
+                </Button>
+              ))}
+            </div>
+          </div>
+        )
+      }
+    />
+  );
+}
+
+function ChatMessage({
+  message,
+}: {
+  message: { role: "user" | "assistant"; content: string; created_at: string };
+}) {
+  const isUser = message.role === "user";
+
+  return (
+    <div className={`flex gap-3 ${isUser ? "flex-row-reverse" : ""}`}>
+      <Avatar className="h-8 w-8 shrink-0">
+        {isUser ? (
+          <>
+            <AvatarFallback>U</AvatarFallback>
+            <AvatarImage src="/pfp.jpg" />
+          </>
+        ) : (
+          <>
+            <AvatarFallback>AI</AvatarFallback>
+            <div className="flex h-full w-full items-center justify-center bg-primary text-primary-foreground">
+              <Bot className="h-4 w-4" />
+            </div>
+          </>
+        )}
+      </Avatar>
+      <div
+        className={`flex min-w-0 max-w-[88%] flex-col gap-1 sm:max-w-[80%] ${
+          isUser ? "items-end" : "items-start"
+        }`}
+      >
+        <div
+          className={`w-full rounded-2xl px-4 py-2.5 text-sm shadow-sm wrap-break-word ${
+            isUser
+              ? "bg-primary text-primary-foreground"
+              : "bg-muted text-foreground prose prose-sm max-w-none dark:prose-invert"
+          }`}
+        >
+          {isUser ? (
+            message.content
+          ) : (
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {message.content}
+            </ReactMarkdown>
+          )}
+        </div>
+        <span className="text-[10px] text-muted-foreground">
+          {message.created_at ? new Date(message.created_at).toLocaleTimeString() : "Now"}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function ChatInput({
+  value,
+  onChange,
+  onSubmit,
+  disabled,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onSubmit: (e: React.FormEvent) => void;
+  disabled: boolean;
+}) {
+  return (
+    <div className="p-4 sm:p-5">
+      <form
+        onSubmit={onSubmit}
+        className="mx-auto flex w-full max-w-4xl flex-col gap-3 sm:flex-row sm:items-center"
+      >
+        <Input
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="Type your message..."
+          className="min-w-0 flex-1 rounded-full border-muted-foreground/20 px-4 focus-visible:ring-primary/50"
+          disabled={disabled}
+        />
+        <Button
+          type="submit"
+          size="icon"
+          className="h-10 w-full shrink-0 rounded-full transition-transform active:scale-95 sm:w-10"
+          disabled={disabled || !value.trim()}
+        >
+          <Send className="h-4 w-4" />
+          <span className="sr-only">Send</span>
+        </Button>
+      </form>
     </div>
   );
 }
