@@ -15,9 +15,31 @@ const syne = Syne({
 });
 
 export const metadata: Metadata = {
-  title: "Omnix",
+  title: {
+    default: "Omnix - AI-Powered Notebooks",
+    template: "%s | Omnix",
+  },
   description:
     "Omnix turns scattered ideas, class notes, meetings, and research into clean AI-generated notebooks that are easy to review, share, and act on.",
+  keywords: ["AI", "machine learning", "notebooks", "data science", "Python", "Jupyter"],
+  authors: [{ name: "Omnix" }],
+  openGraph: {
+    title: "Omnix - AI-Powered Notebooks",
+    description: "Transform your ideas into clean AI-generated notebooks",
+    url: "https://omnix.easelabs.in/",
+    siteName: "Omnix",
+    locale: "en_US",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Omnix - AI-Powered Notebooks",
+    description: "Transform your ideas into clean AI-generated notebooks",
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
 };
 
 export default function RootLayout({

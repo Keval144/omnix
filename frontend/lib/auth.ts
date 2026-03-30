@@ -38,7 +38,12 @@ export const createAuth = () => {
           }
         : {}),
     },
-    plugins: [lastLoginMethod(), ...authPlugins],
+    plugins: [
+      lastLoginMethod({
+        cookieName: "better-auth.last_used_login_method",
+      }), 
+      ...authPlugins
+    ],
   });
 };
 

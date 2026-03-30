@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from llm.iflow_client import IFlowClient
 from models.dataset import Dataset
 from models.notebook import Notebook
-from prompts.notebook_prompts import NOTEBOOK_SECTIONS, build_notebook_prompt
+from prompts.notebook_prompts import get_notebook_sections, build_notebook_prompt
 from services.dataset_analyzer import analyze_dataset_file
 from services.project_service import ProjectService
 from services.rag_service import retrieve_ml_context
@@ -87,20 +87,25 @@ class NotebookService:
 
         prompt = build_notebook_prompt(rag_context, dataset_info, file_name)
 
+        problem_type = dataset_info.get("problem_type", "classification")
+        domain = dataset_info.get("domain", "tabular")
+
         try:
             response = IFlowClient.generate(prompt)
             sections = json.loads(response)
         except (RuntimeError, json.JSONDecodeError):
             sections = NotebookService._build_fallback_sections(resolved_dataset_path, dataset_info)
 
-        return NotebookService._build_notebook_cells(file_name, sections)
+        return NotebookService._build_notebook_cells(file_name, sections, problem_type, domain)
 
     @staticmethod
-    def _build_notebook_cells(file_name: str, sections: dict) -> nbformat.Notebook:
+    def _build_notebook_cells(file_name: str, sections: dict, problem_type: str, domain: str) -> nbformat.Notebook:
         notebook = nbformat.v4.new_notebook()
+        sections_template = get_notebook_sections(problem_type, domain)
+        
         cells = [nbformat.v4.new_markdown_cell(f"# Omnix AI Generated Notebook\n\nDataset: **{file_name}**")]
         
-        for section in NOTEBOOK_SECTIONS:
+        for section in sections_template:
             cells.append(nbformat.v4.new_markdown_cell(f"## {section['title']}"))
             cells.append(nbformat.v4.new_code_cell(sections.get(section["key"], "")))
         

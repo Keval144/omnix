@@ -98,7 +98,7 @@ export default function SidebarWrapperClient({
     <SidebarProvider defaultOpen={defaultOpen}>
       <Sidebar>
         <SidebarHeader className=" flex h-16 shrink-0 border-b pt-4">
-          <div className="flex items-center gap-2 pt-2 pl-3">
+          <div className="flex items-center gap-2  pl-3">
             <Logo size={30} />
             <span className="text-lg font-semibold leading-none tracking-tight">
               Omnix

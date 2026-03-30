@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
@@ -23,7 +23,7 @@ import { Label } from "@/components/shadcn-ui/label";
 import { Button } from "@/components/shadcn-ui/button";
 import { Separator } from "@/components/shadcn-ui/separator";
 
-import { Mail, Lock, Eye, EyeOff, Loader2, Chrome, Github, BadgeCheck } from "lucide-react";
+import { Mail, Lock, Eye, EyeOff, Loader2, Chrome, Github, Clock, BadgeCheck } from "lucide-react";
 import { Logo } from "@/components/common/logo";
 
 export function SigninForm() {
@@ -39,6 +39,26 @@ export function SigninForm() {
 
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [lastMethod, setLastMethod] = useState<string | null>(null);
+
+  useEffect(() => {
+    let method = authClient.getLastUsedLoginMethod();
+    console.log('Last used login method from client:', method);
+    
+    if (!method) {
+      const cookies = document.cookie.split(';');
+      for (let cookie of cookies) {
+        const [name, value] = cookie.trim().split('=');
+        if (name === 'better-auth.last_used_login_method') {
+          method = value;
+          console.log('Found cookie:', value);
+          break;
+        }
+      }
+    }
+    
+    setLastMethod(method);
+  }, []);
 
   const handleSignin = async () => {
     const result = signInSchema.safeParse({ email, password });
@@ -79,8 +99,6 @@ export function SigninForm() {
 
     router.push("/dashboard");
   };
-
-  const lastMethod = authClient.getLastUsedLoginMethod();
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !loading) {
@@ -167,14 +185,21 @@ export function SigninForm() {
             )}
           </div>
 
-          <Button
-            onClick={handleSignin}
-            disabled={loading}
-            className="w-full py-2 font-medium shadow-md shadow-primary/20"
-          >
-            {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-            Sign In
-          </Button>
+          <div className="relative">
+            <Button
+              onClick={handleSignin}
+              disabled={loading}
+              className="w-full py-2 font-medium shadow-md shadow-primary/20"
+            >
+              {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+              Sign In
+            </Button>
+            {lastMethod === 'email' && (
+              <span className="absolute -top-2 -right-2 bg-black text-white text-[10px] px-2 py-0.5 rounded-full font-medium">
+                Last used
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Divider */}
@@ -186,23 +211,35 @@ export function SigninForm() {
 
         {/* Social */}
         <div className="flex flex-col gap-2">
-          <Button 
-            variant="outline" 
-            className={`w-full py-2 border-border/60 bg-background/40 hover:bg-background/70 transition-colors ${lastMethod === 'google' ? 'border-primary/50 ring-1 ring-primary/20' : ''}`}
-          >
-            <Chrome className="w-4 h-4" />
-            Continue with Google
-            {lastMethod === 'google' && <BadgeCheck className="w-4 h-4 ml-auto text-primary" />}
-          </Button>
+          <div className="relative">
+            <Button 
+              variant="outline" 
+              className="w-full py-2 border-border/60 bg-background/40 hover:bg-background/70 transition-colors"
+            >
+              <Chrome className="w-4 h-4" />
+              Continue with Google
+            </Button>
+            {lastMethod === 'google' && (
+              <span className="absolute -top-2 -right-2 bg-black text-white text-[10px] px-2 py-0.5 rounded-full font-medium">
+                Last used
+              </span>
+            )}
+          </div>
 
-          <Button 
-            variant="outline" 
-            className={`w-full py-2 border-border/60 bg-background/40 hover:bg-background/70 transition-colors ${lastMethod === 'github' ? 'border-primary/50 ring-1 ring-primary/20' : ''}`}
-          >
-            <Github className="w-4 h-4" />
-            Continue with GitHub
-            {lastMethod === 'github' && <BadgeCheck className="w-4 h-4 ml-auto text-primary" />}
-          </Button>
+          <div className="relative">
+            <Button 
+              variant="outline" 
+              className="w-full py-2 border-border/60 bg-background/40 hover:bg-background/70 transition-colors"
+            >
+              <Github className="w-4 h-4" />
+              Continue with GitHub
+            </Button>
+            {lastMethod === 'github' && (
+              <span className="absolute -top-2 -right-2 bg-black text-white text-[10px] px-2 py-0.5 rounded-full font-medium">
+                Last used
+              </span>
+            )}
+          </div>
         </div>
       </CardContent>
 

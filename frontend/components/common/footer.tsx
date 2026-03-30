@@ -47,13 +47,13 @@ export function Footer() {
 
         <nav>
           <ul className="flex flex-wrap gap-4 text-sm font-medium text-muted-foreground md:gap-6">
-            {navLinks.map((link) => (
+            {/* {navLinks.map((link) => (
               <li key={link.label}>
                 <a className="hover:text-foreground" href={link.href}>
                   {link.label}
                 </a>
               </li>
-            ))}
+            ))} */}
           </ul>
         </nav>
       </div>

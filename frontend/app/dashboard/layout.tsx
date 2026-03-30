@@ -1,9 +1,15 @@
+import type { Metadata } from "next";
 import { ThemeSwitch } from "@/components/common/theme-switch";
 import { BreadcrumbNav } from "@/components/common/breadcrumb-nav";
 import SidebarWrapperClient from "@/components/chats/sidebar-provider";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { cookies, headers } from "next/headers";
+
+export const metadata: Metadata = {
+  title: "Dashboard",
+  description: "Manage your Omnix projects and AI-generated notebooks",
+};
 
 async function DashboardLayout({
   children,

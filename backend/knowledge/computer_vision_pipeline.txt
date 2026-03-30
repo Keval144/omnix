@@ -1,0 +1,807 @@
+# Computer Vision Pipeline
+
+## Overview
+
+Computer Vision (CV) enables machines to interpret and understand visual information from the world. It encompasses tasks ranging from simple image classification to complex scene understanding, object detection, and even video analysis. This comprehensive guide covers the complete pipeline from data preparation to model deployment.
+
+## When to Use Computer Vision
+
+### Decision Tree: Which CV Task?
+
+```
+What is your task?
+    |
+    +-- Image Classification --> CNN/Transfer Learning
+    |
+    +-- Object Detection --> YOLO, R-CNN family
+    |
+    +-- Image Segmentation --> U-Net, Mask R-CNN
+    |
+    +-- Face Recognition --> FaceNet, ArcFace
+    |
+    +-- Image Generation --> GAN, Diffusion
+    |
+    +-- Video Analysis --> 3D CNN, RNN/LSTM
+```
+
+### Task Selection Guide
+
+| Task | Best Models | When to Use |
+|------|-------------|-------------|
+| Image Classification | ResNet, EfficientNet, ViT | Single object per image |
+| Object Detection | YOLO, Faster R-CNN | Multiple objects, localization |
+| Semantic Segmentation | U-Net, DeepLabV3 | Per-pixel classification |
+| Instance Segmentation | Mask R-CNN | Distinguish object instances |
+| Face Recognition | FaceNet, ArcFace | Identity verification |
+| Pose Estimation | OpenPose, HRNet | Human pose detection |
+| Image Generation | Stable Diffusion, GANs | Creating new images |
+
+### Dataset Size Guidelines
+
+| Dataset Size | Recommendation |
+|--------------|---------------|
+| < 1,000 | Transfer learning essential |
+| 1,000 - 10,000 | Transfer learning + augmentation |
+| 10,000 - 100,000 | Fine-tuning pre-trained models |
+| > 100,000 | Can train from scratch |
+
+## Pipeline Steps
+
+```
+1. Data Collection & Organization
+2. Data Cleaning & Preprocessing
+3. Exploratory Data Analysis
+4. Data Augmentation
+5. Model Architecture Selection
+6. Transfer Learning / Training
+7. Evaluation & Metrics
+8. Error Analysis
+9. Model Optimization
+10. Deployment
+```
+
+## Data Loading & Organization
+
+### Directory Structure
+
+```
+dataset/
+├── train/
+│   ├── class1/
+│   │   ├── image1.jpg
+│   │   └── image2.jpg
+│   ├── class2/
+│   │   └── ...
+│   └── class3/
+├── val/
+│   ├── class1/
+│   ├── class2/
+│   └── class3/
+└── test/
+    ├── class1/
+    ├── class2/
+    └── class3/
+```
+
+### Loading Images
+
+```python
+import numpy as np
+import cv2
+from pathlib import Path
+from PIL import Image
+
+# Method 1: Using TensorFlow/Keras
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+
+train_datagen = ImageDataGenerator(
+    rescale=1./255,
+    validation_split=0.2
+)
+
+train_generator = train_datagen.flow_from_directory(
+    'data/train',
+    target_size=(224, 224),
+    batch_size=32,
+    class_mode='categorical',
+    shuffle=True,
+    seed=42
+)
+
+# Get class information
+print(f"Classes: {train_generator.class_indices}")
+print(f"Number of classes: {train_generator.num_classes}")
+print(f"Samples per epoch: {train_generator.samples}")
+
+# Method 2: Using PyTorch
+import torch
+from torchvision import datasets, transforms
+
+transform = transforms.Compose([
+    transforms.Resize((224, 224)),
+    transforms.ToTensor(),
+    transforms.Normalize(mean=[0.485, 0.456, 0.406], 
+                        std=[0.229, 0.224, 0.225])
+])
+
+train_dataset = datasets.ImageFolder('data/train', transform=transform)
+train_loader = torch.utils.data.DataLoader(
+    train_dataset,
+    batch_size=32,
+    shuffle=True,
+    num_workers=4
+)
+
+# Method 3: Manual loading with OpenCV
+def load_images_from_folder(folder, target_size=(224, 224)):
+    images = []
+    labels = []
+    class_names = sorted(os.listdir(folder))
+    
+    for class_idx, class_name in enumerate(class_names):
+        class_path = os.path.join(folder, class_name)
+        if not os.path.isdir(class_path):
+            continue
+            
+        for img_name in os.listdir(class_path):
+            img_path = os.path.join(class_path, img_name)
+            img = cv2.imread(img_path)
+            if img is not None:
+                img = cv2.resize(img, target_size)
+                img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+                images.append(img)
+                labels.append(class_idx)
+    
+    return np.array(images), np.array(labels), class_names
+```
+
+## Image Preprocessing
+
+### Basic Preprocessing
+
+```python
+import cv2
+import numpy as np
+
+def preprocess_image(image, target_size=(224, 224)):
+    """Basic image preprocessing"""
+    # Resize
+    image = cv2.resize(image, target_size)
+    # Normalize to [0, 1]
+    image = image.astype(np.float32) / 255.0
+    return image
+
+def normalize_imagenet(image):
+    """ImageNet normalization"""
+    mean = np.array([0.485, 0.456, 0.406])
+    std = np.array([0.229, 0.224, 0.225])
+    return (image - mean) / std
+
+def denormalize_imagenet(image):
+    """Reverse ImageNet normalization"""
+    mean = np.array([0.485, 0.456, 0.406])
+    std = np.array([0.229, 0.224, 0.225])
+    return (image * std) + mean
+```
+
+### Advanced Preprocessing
+
+```python
+def enhance_contrast(image):
+    """CLAHE for contrast enhancement"""
+    lab = cv2.cvtColor(image, cv2.COLOR_RGB2LAB)
+    l, a, b = cv2.split(lab)
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    l = clahe.apply(l)
+    lab = cv2.merge([l, a, b])
+    return cv2.cvtColor(lab, cv2.COLOR_LAB2RGB)
+
+def remove_background(image, threshold=128):
+    """Simple background removal"""
+    gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+    _, mask = cv2.threshold(gray, threshold, 255, cv2.THRESH_BINARY_INV)
+    result = cv2.bitwise_and(image, image, mask=mask)
+    return result
+
+def apply_gaussian_blur(image, kernel_size=(5, 5)):
+    """Apply Gaussian blur for noise reduction"""
+    return cv2.GaussianBlur(image, kernel_size, 0)
+
+def edge_detection(image):
+    """Canny edge detection"""
+    gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+    edges = cv2.Canny(gray, 100, 200)
+    return edges
+```
+
+## Data Augmentation
+
+### Why Augmentation?
+
+- Increases effective dataset size
+- Reduces overfitting
+- Improves model generalization
+- Makes model robust to variations
+
+### Keras ImageDataGenerator
+
+```python
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+
+# Comprehensive augmentation
+train_datagen = ImageDataGenerator(
+    rescale=1./255,
+    
+    # Geometric augmentations
+    rotation_range=20,
+    width_shift_range=0.2,
+    height_shift_range=0.2,
+    shear_range=0.15,
+    zoom_range=0.2,
+    horizontal_flip=True,
+    vertical_flip=False,
+    
+    # Photometric augmentations
+    brightness_range=[0.8, 1.2],
+    channel_shift_range=20,
+    
+    # Advanced
+    fill_mode='nearest',
+    preprocessing_function=None
+)
+
+# Validation/test should only rescale
+val_datagen = ImageDataGenerator(rescale=1./255)
+```
+
+### PyTorch Transforms
+
+```python
+from torchvision import transforms
+
+train_transform = transforms.Compose([
+    transforms.RandomResizedCrop(224, scale=(0.8, 1.0)),
+    transforms.RandomHorizontalFlip(p=0.5),
+    transforms.RandomRotation(15),
+    transforms.ColorJitter(
+        brightness=0.2,
+        contrast=0.2,
+        saturation=0.2,
+        hue=0.1
+    ),
+    transforms.RandomAffine(
+        degrees=0,
+        translate=(0.1, 0.1),
+        scale=(0.9, 1.1)
+    ),
+    transforms.ToTensor(),
+    transforms.Normalize(
+        mean=[0.485, 0.456, 0.406],
+        std=[0.229, 0.224, 0.225]
+    )
+])
+
+val_transform = transforms.Compose([
+    transforms.Resize(256),
+    transforms.CenterCrop(224),
+    transforms.ToTensor(),
+    transforms.Normalize(
+        mean=[0.485, 0.456, 0.406],
+        std=[0.229, 0.224, 0.225]
+    )
+])
+```
+
+### Advanced Augmentation Techniques
+
+```python
+# Cutout (random erasing)
+def cutout(image, mask_size=16):
+    """Randomly mask a square region"""
+    h, w = image.shape[:2]
+    y = np.random.randint(h)
+    x = np.random.randint(w)
+    
+    y1 = np.clip(y - mask_size // 2, 0, h)
+    y2 = np.clip(y + mask_size // 2, 0, h)
+    x1 = np.clip(x - mask_size // 2, 0, w)
+    x2 = np.clip(x + mask_size // 2, 0, w)
+    
+    image = image.copy()
+    image[y1:y2, x1:x2] = 0
+    return image
+
+# Mixup
+def mixup_data(x1, y1, x2, y2, alpha=0.2):
+    """Mix two images"""
+    lam = np.random.beta(alpha, alpha)
+    x = lam * x1 + (1 - lam) * x2
+    y = lam * y1 + (1 - lam) * y2
+    return x, y
+
+# CutMix
+def cutmix_data(x1, y1, x2, y2, alpha=1.0):
+    """Cut and paste regions between images"""
+    lam = np.random.beta(alpha, alpha)
+    
+    h, w = x1.shape[:2]
+    cx = np.random.randint(w)
+    cy = np.random.randint(h)
+    
+    cut_rat = np.sqrt(1. - lam)
+    cut_w = int(w * cut_rat)
+    cut_h = int(h * cut_rat)
+    
+    x1_min = max(0, cx - cut_w // 2)
+    x1_max = min(w, cx + cut_w // 2)
+    y1_min = max(0, cy - cut_h // 2)
+    y1_max = min(h, cy + cut_h // 2)
+    
+    x1[:, y1_min:y1_max, x1_min:x1_max] = x2[:, y1_min:y1_max, x1_min:x1_max]
+    lam = 1 - ((x1_max - x1_min) * (y1_max - y1_min) / (w * h))
+    
+    return x1, y1 * lam + y2 * (1 - lam)
+```
+
+## Model Architectures
+
+### 1. CNN from Scratch
+
+```python
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import (
+    Conv2D, MaxPooling2D, AveragePooling2D,
+    Flatten, Dense, Dropout, BatchNormalization,
+    Activation, Input
+)
+
+def build_cnn(input_shape=(224, 224, 3), num_classes=10):
+    """Build CNN from scratch for image classification"""
+    model = Sequential([
+        # Block 1: 224 -> 112
+        Input(shape=input_shape),
+        Conv2D(32, (3, 3), padding='same'),
+        BatchNormalization(),
+        Activation('relu'),
+        Conv2D(32, (3, 3), padding='same'),
+        BatchNormalization(),
+        Activation('relu'),
+        MaxPooling2D((2, 2)),
+        Dropout(0.25),
+        
+        # Block 2: 112 -> 56
+        Conv2D(64, (3, 3), padding='same'),
+        BatchNormalization(),
+        Activation('relu'),
+        Conv2D(64, (3, 3), padding='same'),
+        BatchNormalization(),
+        Activation('relu'),
+        MaxPooling2D((2, 2)),
+        Dropout(0.25),
+        
+        # Block 3: 56 -> 28
+        Conv2D(128, (3, 3), padding='same'),
+        BatchNormalization(),
+        Activation('relu'),
+        Conv2D(128, (3, 3), padding='same'),
+        BatchNormalization(),
+        Activation('relu'),
+        MaxPooling2D((2, 2)),
+        Dropout(0.25),
+        
+        # Classifier
+        Flatten(),
+        Dense(256),
+        BatchNormalization(),
+        Activation('relu'),
+        Dropout(0.5),
+        Dense(num_classes, activation='softmax')
+    ])
+    
+    return model
+```
+
+### 2. Transfer Learning
+
+```python
+from tensorflow.keras.applications import (
+    ResNet50, ResNet101, ResNet152,
+    VGG16, VGG19,
+    EfficientNetB0, EfficientNetB1, EfficientNetB7,
+    MobileNetV2, MobileNetV3,
+    InceptionV3, Xception
+)
+from tensorflow.keras.layers import GlobalAveragePooling2D, Dense, Dropout
+from tensorflow.keras.models import Model
+
+def build_transfer_model(
+    base_model_name='ResNet50',
+    input_shape=(224, 224, 3),
+    num_classes=1000,
+    trainable=False
+):
+    """Build transfer learning model"""
+    
+    # Select base model
+    if base_model_name == 'ResNet50':
+        base = ResNet50(weights='imagenet', include_top=False, input_shape=input_shape)
+    elif base_model_name == 'EfficientNetB0':
+        base = EfficientNetB0(weights='imagenet', include_top=False, input_shape=input_shape)
+    elif base_model_name == 'MobileNetV2':
+        base = MobileNetV2(weights='imagenet', include_top=False, input_shape=input_shape)
+    elif base_model_name == 'VGG16':
+        base = VGG16(weights='imagenet', include_top=False, input_shape=input_shape)
+    else:
+        raise ValueError(f"Unknown model: {base_model_name}")
+    
+    # Freeze/unfreeze base
+    base.trainable = trainable
+    
+    # Build model
+    x = base.output
+    x = GlobalAveragePooling2D()(x)
+    x = Dense(256, activation='relu')(x)
+    x = Dropout(0.5)(x)
+    predictions = Dense(num_classes, activation='softmax')(x)
+    
+    model = Model(inputs=base.input, outputs=predictions)
+    
+    return model
+
+# Fine-tune strategy
+def fine_tune_strategy(model, unfreeze_from=100):
+    """Fine-tune strategy: unfreeze later layers"""
+    for layer in model.layers[:unfreeze_from]:
+        layer.trainable = False
+    for layer in model.layers[unfreeze_from:]:
+        layer.trainable = True
+    return model
+```
+
+### 3. Object Detection with YOLO
+
+```python
+# Using Ultralytics YOLO
+from ultralytics import YOLO
+
+# Load pretrained model
+model = YOLO('yolov8n.pt')  # nano, small, medium, large, xlarge
+
+# Train on custom data
+results = model.train(
+    data='dataset.yaml',
+    epochs=100,
+    imgsz=640,
+    batch=16,
+    device='cuda',
+    workers=8,
+    project='runs/train',
+    name='yolo_experiment',
+    
+    # Augmentation
+    hsv_h=0.015,
+    hsv_s=0.7,
+    hsv_v=0.4,
+    degrees=0.0,
+    translate=0.1,
+    scale=0.5,
+    shear=0.0,
+    perspective=0.0,
+    flipud=0.0,
+    fliplr=0.5,
+    mosaic=1.0,
+    mixup=0.0,
+)
+
+# Inference
+results = model.predict(
+    source='image.jpg',
+    conf=0.25,
+    iou=0.45,
+    save=True,
+    save_txt=True
+)
+
+# Get bounding boxes
+boxes = results[0].boxes
+for box in boxes:
+    x1, y1, x2, y2 = box.xyxy[0].tolist()
+    confidence = box.conf[0].item()
+    class_id = int(box.cls[0])
+    class_name = results[0].names[class_id]
+```
+
+### 4. Image Segmentation with U-Net
+
+```python
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import (
+    Input, Conv2D, MaxPooling2D, UpSampling2D,
+    Concatenate, BatchNormalization, Activation
+)
+
+def conv_block(x, filters):
+    x = Conv2D(filters, (3, 3), padding='same')(x)
+    x = BatchNormalization()(x)
+    x = Activation('relu')(x)
+    x = Conv2D(filters, (3, 3), padding='same')(x)
+    x = BatchNormalization()(x)
+    x = Activation('relu')(x)
+    return x
+
+def build_unet(input_shape=(256, 256, 3)):
+    inputs = Input(input_shape)
+    
+    # Encoder
+    c1 = conv_block(inputs, 64)
+    p1 = MaxPooling2D((2, 2))(c1)
+    
+    c2 = conv_block(p1, 128)
+    p2 = MaxPooling2D((2, 2))(c2)
+    
+    c3 = conv_block(p2, 256)
+    p3 = MaxPooling2D((2, 2))(c3)
+    
+    c4 = conv_block(p3, 512)
+    p4 = MaxPooling2D((2, 2))(c4)
+    
+    # Bottleneck
+    c5 = conv_block(p4, 1024)
+    
+    # Decoder
+    u6 = UpSampling2D((2, 2))(c5)
+    u6 = Concatenate()([u6, c4])
+    c6 = conv_block(u6, 512)
+    
+    u7 = UpSampling2D((2, 2))(c6)
+    u7 = Concatenate()([u7, c3])
+    c7 = conv_block(u7, 256)
+    
+    u8 = UpSampling2D((2, 2))(c7)
+    u8 = Concatenate()([u8, c2])
+    c8 = conv_block(u8, 128)
+    
+    u9 = UpSampling2D((2, 2))(c8)
+    u9 = Concatenate()([u9, c1])
+    c9 = conv_block(u9, 64)
+    
+    # Output
+    outputs = Conv2D(1, (1, 1), activation='sigmoid')(c9)
+    
+    return Model(inputs, outputs)
+```
+
+## Training
+
+### Callbacks
+
+```python
+from tensorflow.keras.callbacks import (
+    EarlyStopping,
+    ModelCheckpoint,
+    ReduceLROnPlateau,
+    TensorBoard,
+    CSVLogger,
+    LearningRateScheduler
+)
+
+callbacks = [
+    EarlyStopping(
+        monitor='val_loss',
+        patience=15,
+        restore_best_weights=True,
+        verbose=1
+    ),
+    
+    ModelCheckpoint(
+        'best_model.keras',
+        monitor='val_accuracy',
+        save_best_only=True,
+        mode='max',
+        verbose=1
+    ),
+    
+    ReduceLROnPlateau(
+        monitor='val_loss',
+        factor=0.5,
+        patience=5,
+        min_lr=1e-7,
+        verbose=1
+    ),
+    
+    TensorBoard(
+        log_dir='./logs',
+        histogram_freq=1,
+        write_graph=True,
+        update_freq='batch'
+    ),
+    
+    CSVLogger('training.log')
+]
+
+# Train
+history = model.fit(
+    train_generator,
+    validation_data=val_generator,
+    epochs=100,
+    callbacks=callbacks
+)
+```
+
+### Mixed Precision Training
+
+```python
+from tensorflow.keras import mixed_precision
+
+# Enable mixed precision for faster training
+mixed_precision.set_global_policy('mixed_float16')
+
+# Use with gradient scaling
+optimizer = Adam()
+optimizer = mixed_precision.LossScaleOptimizer(optimizer)
+
+model.compile(
+    optimizer=optimizer,
+    loss='categorical_crossentropy',
+    metrics=['accuracy']
+)
+```
+
+## Evaluation Metrics
+
+### Classification Metrics
+
+```python
+from sklearn.metrics import (
+    classification_report,
+    confusion_matrix,
+    accuracy_score,
+    precision_score,
+    recall_score,
+    f1_score,
+    roc_auc_score
+)
+import numpy as np
+
+# Get predictions
+Y_pred = model.predict(val_generator)
+y_pred = np.argmax(Y_pred, axis=1)
+y_true = val_generator.classes
+
+# Metrics
+print(classification_report(y_true, y_pred, target_names=class_names))
+print(f"Accuracy: {accuracy_score(y_true, y_pred):.4f}")
+
+# Confusion matrix
+cm = confusion_matrix(y_true, y_pred)
+
+# Per-class metrics
+precision = precision_score(y_true, y_pred, average=None)
+recall = recall_score(y_true, y_pred, average=None)
+f1 = f1_score(y_true, y_pred, average=None)
+
+for i, (p, r, f) in enumerate(zip(precision, recall, f1)):
+    print(f"{class_names[i]}: P={p:.3f}, R={r:.3f}, F1={f:.3f}")
+```
+
+### Object Detection Metrics
+
+```python
+# Mean Average Precision (mAP)
+from sklearn.metrics import average_precision_score
+
+# Calculate AP for each class
+ap_per_class = []
+for cls in range(num_classes):
+    y_true_bin = (y_true == cls).astype(int)
+    y_score = y_pred_proba[:, cls]
+    ap = average_precision_score(y_true_bin, y_score)
+    ap_per_class.append(ap)
+
+mAP = np.mean(ap_per_class)
+print(f"mAP: {mAP:.4f}")
+
+# IoU calculation
+def calculate_iou(box1, box2):
+    """Calculate Intersection over Union"""
+    x1 = max(box1[0], box2[0])
+    y1 = max(box1[1], box2[1])
+    x2 = min(box1[2], box2[2])
+    y2 = min(box1[3], box2[3])
+    
+    intersection = max(0, x2 - x1) * max(0, y2 - y1)
+    area1 = (box1[2] - box1[0]) * (box1[3] - box1[1])
+    area2 = (box2[2] - box2[0]) * (box2[3] - box2[1])
+    union = area1 + area2 - intersection
+    
+    return intersection / union if union > 0 else 0
+```
+
+### Segmentation Metrics
+
+```python
+# Pixel-wise accuracy
+def pixel_accuracy(y_true, y_pred):
+    return np.mean(y_true == y_pred)
+
+# Mean IoU
+def mean_iou(y_true, y_pred, num_classes):
+    ious = []
+    for cls in range(num_classes):
+        true_cls = (y_true == cls)
+        pred_cls = (y_pred == cls)
+        intersection = np.logical_and(true_cls, pred_cls).sum()
+        union = np.logical_or(true_cls, pred_cls).sum()
+        if union > 0:
+            ious.append(intersection / union)
+    return np.mean(ious)
+
+# Dice coefficient
+def dice_coefficient(y_true, y_pred):
+    intersection = np.sum(y_true * y_pred)
+    return (2. * intersection) / (y_true.sum() + y_pred.sum())
+```
+
+## Common Architectures Summary
+
+| Architecture | Parameters | Top-1 Acc | Input Size | Best For |
+|--------------|------------|-----------|------------|----------|
+| LeNet-5 | 60K | - | 32x32 | MNIST, simple |
+| AlexNet | 61M | 63% | 227x227 | ImageNet baseline |
+| VGG-16 | 138M | 74% | 224x224 | Transfer learning |
+| VGG-19 | 144M | 74% | 224x224 | Transfer learning |
+| InceptionV3 | 23.8M | 78% | 299x299 | Efficient |
+| ResNet-50 | 25.6M | 76% | 224x224 | Transfer learning |
+| ResNet-101 | 44.7M | 77% | 224x224 | Deeper networks |
+| ResNet-152 | 60M | 78% | 224x224 | Best accuracy |
+| EfficientNetB0 | 5.3M | 77% | 224x224 | Efficiency |
+| EfficientNetB7 | 66M | 85% | 600x600 | Best efficiency |
+| MobileNetV2 | 3.5M | 72% | 224x224 | Mobile/Edge |
+| MobileNetV3 | 5.5M | 75% | 224x224 | Mobile/Edge |
+| ViT-B/16 | 86M | 84% | 384x384 | Transformers |
+| YOLOv8-n | 3.2M | 37% | 640 | Real-time detection |
+| YOLOv8-l | 43M | 53% | 640 | Best accuracy |
+| U-Net | ~30M | - | 256x256 | Segmentation |
+| Mask R-CNN | 63M | 39% | 1024 | Instance seg |
+
+## Deployment Considerations
+
+### Model Optimization
+
+```python
+# Quantization
+import tensorflow as tf
+
+# Convert to TensorFlow Lite
+converter = tf.lite.TFLiteConverter.from_keras_model(model)
+converter.optimizations = [tf.lite.Optimize.DEFAULT]
+converter.target_spec.supported_types = [tf.float16]
+tflite_model = converter.convert()
+
+# Save
+with open('model.tflite', 'wb') as f:
+    f.write(tflite_model)
+
+# ONNX export
+# pip install onnxruntime
+# model.save('model.keras')
+# Use onnx tools to convert
+```
+
+### Inference Optimization
+
+```python
+# Use tf.function for faster inference
+@tf.function
+def predict(images):
+    return model(images, training=False)
+
+# Batch inference
+def predict_batch(images, batch_size=32):
+    predictions = []
+    for i in range(0, len(images), batch_size):
+        batch = images[i:i+batch_size]
+        pred = predict(batch)
+        predictions.append(pred)
+    return np.concatenate(predictions)
+```
