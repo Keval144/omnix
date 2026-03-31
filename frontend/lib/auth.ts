@@ -10,6 +10,8 @@ export const createAuth = () => {
   const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
   const githubClientId = process.env.GITHUB_CLIENT_ID;
   const githubClientSecret = process.env.GITHUB_CLIENT_SECRET;
+  const hasGoogle = Boolean(googleClientId) && Boolean(googleClientSecret);
+  const hasGithub = Boolean(githubClientId) && Boolean(githubClientSecret);
 
   return betterAuth({
     database: drizzleAdapter(db, {
@@ -21,7 +23,7 @@ export const createAuth = () => {
       autoSignIn: true,
     },
     socialProviders: {
-      ...(googleClientId && googleClientSecret
+      ...(hasGoogle
         ? {
             google: {
               clientId: googleClientId,
@@ -29,7 +31,7 @@ export const createAuth = () => {
             },
           }
         : {}),
-      ...(githubClientId && githubClientSecret
+      ...(hasGithub
         ? {
             github: {
               clientId: githubClientId,
