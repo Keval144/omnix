@@ -1,11 +1,18 @@
 import uuid
 from datetime import datetime
+from enum import Enum
 
-from sqlalchemy import BIGINT, DateTime, ForeignKey, Index, String, Text, func
+from sqlalchemy import BIGINT, DateTime, Enum as SqlEnum, ForeignKey, Index, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from db.base import Base
+
+
+class DatasetStatus(str, Enum):
+    PROCESSING = "processing"
+    READY = "ready"
+    FAILED = "failed"
 
 
 class Dataset(Base):
@@ -24,6 +31,7 @@ class Dataset(Base):
     file_size: Mapped[int] = mapped_column(BIGINT, nullable=False)
     file_type: Mapped[str] = mapped_column(String(50), nullable=False)
     summary: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    status: Mapped[DatasetStatus] = mapped_column(SqlEnum(DatasetStatus), default=DatasetStatus.PROCESSING, nullable=False)
     uploaded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     project: Mapped["Project"] = relationship(back_populates="datasets", lazy="selectin")

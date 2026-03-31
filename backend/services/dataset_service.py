@@ -3,16 +3,44 @@ import os
 from pathlib import Path
 from uuid import UUID
 
-from fastapi import HTTPException, UploadFile, status
+from fastapi import BackgroundTasks, HTTPException, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from constants import SUPPORTED_DATASET_EXTENSIONS
-from models.dataset import Dataset
-from services.dataset_analyzer import DatasetAnalyzer, analyze_dataset_async
+from models.dataset import Dataset, DatasetStatus
+from services.dataset_analyzer import analyze_dataset_async
 from services.project_service import ProjectService
 from utils.storage import build_dataset_directory, build_public_storage_path, save_upload_file
 
 logger = logging.getLogger(__name__)
+
+
+async def analyze_dataset_background(dataset_id: UUID, absolute_path: str):
+    from sqlalchemy import select
+    from db.session import SessionLocal
+    
+    async with SessionLocal() as session:
+        try:
+            logger.info(f"Starting background analysis for dataset {dataset_id}")
+            summary = await analyze_dataset_async(absolute_path)
+            
+            stmt = select(Dataset).where(Dataset.dataset_id == dataset_id)
+            dataset = await session.scalar(stmt)
+            if dataset:
+                dataset.summary = summary
+                dataset.status = DatasetStatus.READY
+                await session.commit()
+                logger.info(f"Dataset {dataset_id} analysis completed")
+        except Exception as e:
+            logger.error(f"Background analysis failed for dataset {dataset_id}: {e}")
+            try:
+                stmt = select(Dataset).where(Dataset.dataset_id == dataset_id)
+                dataset = await session.scalar(stmt)
+                if dataset:
+                    dataset.status = DatasetStatus.FAILED
+                    await session.commit()
+            except Exception:
+                pass
 
 
 class DatasetService:
@@ -20,7 +48,13 @@ class DatasetService:
         self.session = session
         self.project_service = ProjectService(session)
 
-    async def upload_dataset(self, project_id: UUID, user_id: str, upload_file: UploadFile) -> Dataset:
+    async def upload_dataset(
+        self, 
+        project_id: UUID, 
+        user_id: str, 
+        upload_file: UploadFile, 
+        background_tasks: BackgroundTasks | None = None
+    ) -> Dataset:
         logger.info(f"Starting dataset upload for project {project_id}, user {user_id}, file: {upload_file.filename}")
 
         project = await self.project_service.get_project_for_user(project_id, user_id)
@@ -48,23 +82,34 @@ class DatasetService:
             public_path = build_public_storage_path("datasets", user_id, project.project_slug, os.path.basename(absolute_path))
             logger.info(f"Public path: {public_path}")
 
-            summary = await analyze_dataset_async(absolute_path)
-            logger.info(f"Dataset analyzed successfully: {summary.get('rows', 0)} rows, {summary.get('columns', 0)} columns")
-
             dataset = Dataset(
                 project_id=project.project_id,
                 file_name=upload_file.filename or os.path.basename(absolute_path),
                 file_path=public_path,
                 file_size=file_size,
                 file_type=extension.lstrip("."),
-                summary=summary,
+                status=DatasetStatus.PROCESSING,
             )
             self.session.add(dataset)
             project.dataset_path = public_path
             await self.session.commit()
             await self.session.refresh(dataset)
             
-            logger.info(f"Dataset uploaded successfully: {dataset.dataset_id}")
+            logger.info(f"Dataset created with status PROCESSING: {dataset.dataset_id}")
+
+            if background_tasks:
+                background_tasks.add_task(
+                    analyze_dataset_background,
+                    dataset.dataset_id,
+                    absolute_path
+                )
+            else:
+                summary = await analyze_dataset_async(absolute_path)
+                dataset.summary = summary
+                dataset.status = DatasetStatus.READY
+                await self.session.commit()
+                logger.info(f"Dataset analyzed synchronously: {dataset.dataset_id}")
+            
             return dataset
             
         except HTTPException:

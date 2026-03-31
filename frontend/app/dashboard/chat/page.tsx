@@ -25,6 +25,12 @@ import {
 } from "@/components/shadcn-ui/avatar";
 import { Button } from "@/components/shadcn-ui/button";
 import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/shadcn-ui/accordion";
+import {
   Card,
   CardContent,
   CardHeader,
@@ -77,6 +83,7 @@ function ChatContent() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -88,6 +95,21 @@ function ChatContent() {
     return () =>
       scrollContainerRef.current?.removeEventListener("scroll", handleScroll);
   }, [hasMore, isLoadingHistory, loadMore]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        inputRef.current?.focus();
+      }
+      if (e.key === "Escape") {
+        inputRef.current?.blur();
+        setInput("");
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -145,7 +167,7 @@ function ChatContent() {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-4 py-2 pt-4 lg:flex-row">
+    <div className="flex h-full min-h-0 flex-col gap-4 py-2 pt-4 lg:flex-row lg:gap-0">
       <ProjectSidebar
         project={project}
         sessionInfo={sessionInfo}
@@ -169,6 +191,8 @@ function ChatContent() {
         hasDataset={!!project?.dataset_path}
         scrollContainerRef={scrollContainerRef}
         scrollRef={scrollRef}
+        inputRef={inputRef}
+        onSuggestionClick={setInput}
       />
     </div>
   );
@@ -200,16 +224,135 @@ function ProjectSidebar({
   fileInputRef: React.RefObject<HTMLInputElement | null>;
 }) {
   return (
-    <div className="w-full space-y-4 lg:w-72 lg:shrink-0">
-      <Card className="h-full border">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">Project Info</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {isLoading ? (
-            <LoadingSpinner size="sm" />
-          ) : project ? (
-            <>
+    <div className="w-full lg:w-72 lg:shrink-0 lg:px-2 lg:pr-3">
+      {isLoading ? (
+        <Card className="h-full border p-4">
+          <LoadingSpinner size="sm" />
+        </Card>
+      ) : project ? (
+        <>
+          <Card className="border lg:hidden">
+            <Accordion className="w-full" defaultValue={["project"]}>
+              <AccordionItem value="project">
+                <AccordionTrigger className="px-4 text-sm font-medium">
+                  Project Details
+                </AccordionTrigger>
+                <AccordionContent className="px-4 pb-4 space-y-4">
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium wrap-break-word">
+                      {project.metadata?.name || "Untitled"}
+                    </p>
+                    {project.metadata?.description && (
+                      <p className="text-xs text-muted-foreground wrap-break-word">
+                        {project.metadata.description}
+                      </p>
+                    )}
+                    {project.metadata?.tags && project.metadata.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {project.metadata.tags.map((tag) => (
+                          <span
+                            key={tag}
+                            className="rounded-full bg-secondary px-2 py-0.5 text-[10px] text-secondary-foreground"
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      Dataset
+                    </p>
+                    {project.dataset_path ? (
+                      <div className="flex items-center gap-2 text-xs text-green-600">
+                        <FileSpreadsheet className="h-3 w-3 shrink-0" />
+                        <span>Uploaded</span>
+                      </div>
+                    ) : (
+                      <>
+                        <p className="text-xs text-muted-foreground">No dataset</p>
+                        <input
+                          type="file"
+                          accept=".csv,.xls,.xlsx"
+                          className="hidden"
+                          ref={fileInputRef}
+                          onChange={onUploadDataset}
+                        />
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full justify-start gap-2 text-xs cursor-pointer"
+                          disabled={isUploading}
+                          onClick={() => fileInputRef.current?.click()}
+                        >
+                          {isUploading ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <Upload className="h-3 w-3" />
+                          )}
+                          Upload Dataset
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      Notebook
+                    </p>
+                    {project.notebook_path ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full justify-start gap-2 text-xs cursor-pointer"
+                        onClick={() => onDownload(project.notebook_path!)}
+                      >
+                        <Download className="h-3 w-3" />
+                        Download Notebook
+                      </Button>
+                    ) : project.dataset_path ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full justify-start gap-2 text-xs cursor-pointer"
+                        disabled={isGenerating}
+                        onClick={onGenerateNotebook}
+                      >
+                        {isGenerating ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <FileCode className="h-3 w-3" />
+                        )}
+                        Generate Notebook
+                      </Button>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">
+                        Upload dataset first
+                      </p>
+                    )}
+                  </div>
+                  {sessionInfo && (
+                    <div className="space-y-2">
+                      <p className="text-xs font-medium text-muted-foreground">
+                        Session Stats
+                      </p>
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground">Tokens Used:</span>
+                        <span className="font-medium">
+                          {sessionInfo.total_tokens_used.toLocaleString()}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+          </Card>
+          <Card className="hidden lg:block h-full border">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Project Info</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
               <div className="space-y-2">
                 <p className="text-sm font-medium wrap-break-word">
                   {project.metadata?.name || "Untitled"}
@@ -316,12 +459,14 @@ function ProjectSidebar({
                   </div>
                 </div>
               )}
-            </>
-          ) : (
-            <p className="text-xs text-muted-foreground">No project found</p>
-          )}
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+        </>
+      ) : (
+        <Card className="h-full border p-4">
+          <p className="text-xs text-muted-foreground">No project found</p>
+        </Card>
+      )}
     </div>
   );
 }
@@ -337,6 +482,8 @@ function ChatArea({
   hasDataset,
   scrollContainerRef,
   scrollRef,
+  inputRef,
+  onSuggestionClick,
 }: {
   input: string;
   onInputChange: (v: string) => void;
@@ -353,6 +500,8 @@ function ChatArea({
   hasDataset: boolean;
   scrollContainerRef: React.RefObject<HTMLDivElement | null>;
   scrollRef: React.RefObject<HTMLDivElement | null>;
+  inputRef: React.RefObject<HTMLInputElement | null>;
+  onSuggestionClick?: (suggestion: string) => void;
 }) {
   return (
     <div className="flex flex-1 min-h-0 flex-col rounded-lg border bg-background shadow-sm">
@@ -366,7 +515,7 @@ function ChatArea({
           {isLoadingHistory && messages.length === 0 ? (
             <LoadingSpinner />
           ) : messages.length === 0 ? (
-            <EmptyStateWithSuggestions hasDataset={hasDataset} />
+            <EmptyStateWithSuggestions hasDataset={hasDataset} onSuggestionClick={onSuggestionClick} />
           ) : (
             <>
               {isLoadingHistory && hasMore && (
@@ -406,6 +555,7 @@ function ChatArea({
         onChange={onInputChange}
         onSubmit={onSubmit}
         disabled={isLoading}
+        inputRef={inputRef}
       />
     </div>
   );
@@ -429,7 +579,13 @@ function ChatHeader() {
   );
 }
 
-function EmptyStateWithSuggestions({ hasDataset }: { hasDataset: boolean }) {
+function EmptyStateWithSuggestions({ 
+  hasDataset, 
+  onSuggestionClick 
+}: { 
+  hasDataset: boolean; 
+  onSuggestionClick?: (suggestion: string) => void;
+}) {
   return (
     <EmptyState
       icon={MessageSquare}
@@ -447,7 +603,8 @@ function EmptyStateWithSuggestions({ hasDataset }: { hasDataset: boolean }) {
                   key={suggestion}
                   variant="secondary"
                   size="sm"
-                  className="max-w-full text-xs whitespace-normal text-left"
+                  className="max-w-full text-xs whitespace-normal text-left cursor-pointer"
+                  onClick={() => onSuggestionClick?.(suggestion)}
                 >
                   {suggestion}
                 </Button>
@@ -519,29 +676,40 @@ function ChatInput({
   onChange,
   onSubmit,
   disabled,
+  inputRef,
 }: {
   value: string;
   onChange: (v: string) => void;
   onSubmit: (e: React.FormEvent) => void;
   disabled: boolean;
+  inputRef: React.RefObject<HTMLInputElement | null>;
 }) {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      onSubmit(e as unknown as React.FormEvent);
+    }
+  };
+
   return (
     <div className="p-4 sm:p-5">
       <form
         onSubmit={onSubmit}
-        className="mx-auto flex w-full max-w-4xl flex-col gap-3 sm:flex-row sm:items-center"
+        className="mx-auto flex w-full max-w-4xl flex-row items-center gap-2"
       >
         <Input
+          ref={inputRef}
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          placeholder="Type your message..."
+          onKeyDown={handleKeyDown}
+          placeholder="Type your message... (Cmd+K to focus)"
           className="min-w-0 flex-1 rounded-full border-muted-foreground/20 px-4 focus-visible:ring-primary/50"
           disabled={disabled}
         />
         <Button
           type="submit"
           size="icon"
-          className="h-10 w-full shrink-0 rounded-full transition-transform active:scale-95 sm:w-10"
+          className="h-9 w-9 shrink-0 rounded-full transition-transform active:scale-95 sm:h-10 sm:w-10"
           disabled={disabled || !value.trim()}
         >
           <Send className="h-4 w-4" />

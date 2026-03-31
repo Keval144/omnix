@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowRight, CheckCircle2, FileCode, Loader2, MessageSquare } from "lucide-react";
 
 import { Button } from "@/components/shadcn-ui/button";
+import { Skeleton } from "@/components/shadcn-ui/skeleton";
 import type { Project } from "@/lib/api-client";
 
 interface ProjectCardProps {
@@ -83,6 +84,24 @@ export function ProjectCard({
             Open <ArrowRight className="h-3 w-3" />
           </Button>
         </Link>
+      </div>
+    </div>
+  );
+}
+
+export function ProjectCardSkeleton() {
+  return (
+    <div className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex min-w-0 items-center gap-3">
+        <Skeleton className="h-8 w-8 shrink-0 rounded-full" />
+        <div className="min-w-0 space-y-1.5">
+          <Skeleton className="h-4 w-32" />
+          <Skeleton className="h-3 w-20" />
+        </div>
+      </div>
+      <div className="flex gap-2">
+        <Skeleton className="h-8 w-28" />
+        <Skeleton className="h-8 w-20" />
       </div>
     </div>
   );

@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
+import { getSession } from "@/lib/get-session";
 import { StatsSection } from "@/components/common/AnimatedStats";
 import { Footer } from "@/components/common/footer";
 import { Header } from "@/components/common/header";
@@ -12,7 +14,13 @@ export const metadata: Metadata = {
   description: "Transform your ideas, class notes, meetings, and research into clean AI-generated notebooks",
 };
 
-export default function Home() {
+export default async function Home() {
+  const session = await getSession();
+  
+  if (session?.session) {
+    redirect("/dashboard");
+  }
+
   return (
     <>
       <Header />
