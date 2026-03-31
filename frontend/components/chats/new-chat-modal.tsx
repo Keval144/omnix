@@ -22,6 +22,8 @@ import useSWR from "swr";
 
 const fetcher = () => authenticatedFetch("/projects").then((res) => res.json());
 
+const MAX_CHATS = 5;
+
 export function NewChatModal({
   onChatCreated,
 }: {
@@ -34,10 +36,16 @@ export function NewChatModal({
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
 
-  const { mutate } = useSWR("projects", fetcher);
+  const { data: projects, mutate } = useSWR("projects", fetcher);
+  const chatCount = projects?.length ?? 0;
+  const isLimitReached = chatCount >= MAX_CHATS;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isLimitReached) {
+      toast.error(`You can only create up to ${MAX_CHATS} chats`);
+      return;
+    }
     if (!name.trim()) {
       toast.error("Please enter a chat name");
       return;
@@ -82,11 +90,22 @@ export function NewChatModal({
     }
   };
 
+  const handleOpenChange = (isOpen: boolean) => {
+    if (isOpen && isLimitReached) {
+      toast.error(`You can only create up to ${MAX_CHATS} chats. Delete an existing chat to create a new one.`);
+      return;
+    }
+    setOpen(isOpen);
+  };
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger className="inline-flex w-full cursor-pointer items-center justify-start gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm font-medium shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogTrigger
+        className="inline-flex w-full cursor-pointer items-center justify-start gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm font-medium shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50 disabled:cursor-not-allowed"
+        disabled={isLimitReached}
+      >
         <PlusCircle className="h-4 w-4" />
-        New Chat
+        {isLimitReached ? `Max ${MAX_CHATS} chats reached` : "New Chat"}
       </DialogTrigger>
       <DialogContent className="max-w-[calc(100vw-1.5rem)] sm:max-w-[425px]">
         <DialogHeader>

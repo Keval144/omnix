@@ -92,6 +92,7 @@ class DatasetService:
             )
             self.session.add(dataset)
             project.dataset_path = public_path
+            project.dataset_file_name = dataset.file_name
             await self.session.commit()
             await self.session.refresh(dataset)
             

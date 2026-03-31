@@ -45,6 +45,7 @@ export async function createProject(name: string, description: string, file: Fil
     project_id: tempId,
     project_slug: "creating...",
     dataset_path: null,
+    dataset_file_name: null,
     notebook_path: null,
     metadata: { name: name || file.name, description, tags: [] },
     created_at: new Date().toISOString(),

@@ -78,6 +78,7 @@ export type Project = {
   project_id: string;
   project_slug: string;
   dataset_path: string | null;
+  dataset_file_name: string | null;
   notebook_path: string | null;
   metadata?: { name?: string; description?: string; tags?: string[] };
   created_at: string;

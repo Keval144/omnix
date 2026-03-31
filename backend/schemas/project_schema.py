@@ -46,6 +46,7 @@ class ProjectResponse(BaseModel):
     project_id: UUID
     project_slug: str
     dataset_path: str | None = None
+    dataset_file_name: str | None = None
     notebook_path: str | None = None
     metadata: dict | None = Field(default=None, validation_alias="metadata_json")
     created_at: datetime

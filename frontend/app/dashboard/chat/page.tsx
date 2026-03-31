@@ -212,6 +212,7 @@ function ProjectSidebar({
   project?: {
     metadata?: { name?: string; description?: string; tags?: string[] };
     dataset_path: string | null;
+    dataset_file_name: string | null;
     notebook_path: string | null;
   } | null;
   sessionInfo: ChatSessionInfo | null;
@@ -265,9 +266,16 @@ function ProjectSidebar({
                       Dataset
                     </p>
                     {project.dataset_path ? (
-                      <div className="flex items-center gap-2 text-xs text-green-600">
-                        <FileSpreadsheet className="h-3 w-3 shrink-0" />
-                        <span>Uploaded</span>
+                      <div className="flex flex-col gap-1 text-xs text-green-600">
+                        <div className="flex items-center gap-2">
+                          <FileSpreadsheet className="h-3 w-3 shrink-0" />
+                          <span>Uploaded</span>
+                        </div>
+                        {project.dataset_file_name && (
+                          <span className="text-muted-foreground truncate" title={project.dataset_file_name}>
+                            {project.dataset_file_name}
+                          </span>
+                        )}
                       </div>
                     ) : (
                       <>
@@ -380,9 +388,16 @@ function ProjectSidebar({
                   Dataset
                 </p>
                 {project.dataset_path ? (
-                  <div className="flex items-center gap-2 text-xs text-green-600">
-                    <FileSpreadsheet className="h-3 w-3 shrink-0" />
-                    <span>Uploaded</span>
+                  <div className="flex flex-col gap-1 text-xs text-green-600">
+                    <div className="flex items-center gap-2">
+                      <FileSpreadsheet className="h-3 w-3 shrink-0" />
+                      <span>Uploaded</span>
+                    </div>
+                    {project.dataset_file_name && (
+                      <span className="text-muted-foreground truncate" title={project.dataset_file_name}>
+                        {project.dataset_file_name}
+                      </span>
+                    )}
                   </div>
                 ) : (
                   <>
