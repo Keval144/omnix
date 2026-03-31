@@ -32,7 +32,7 @@ export const metadata: Metadata = {
     type: "website",
     images: [
       {
-        url: "/twittercard.png",
+        url: "/twiitercard.png",
         width: 1200,
         height: 630,
         alt: "Omnix - AI-Powered Data Analysis Platform",
@@ -45,7 +45,7 @@ export const metadata: Metadata = {
     creator: "@kansagra_keval",
     title: "Omnix - AI-Powered Notebooks",
     description: "Transform your ideas into clean AI-generated notebooks",
-    images: ["/twittercard.png"],
+    images: ["/twiitercard.png"],
   },
   robots: {
     index: true,
