@@ -100,6 +100,18 @@ export function SigninForm() {
     router.push("/dashboard");
   };
 
+  const handleOAuthSignIn = async (provider: "google" | "github") => {
+    const { error } = await authClient.signIn.social({
+      provider,
+    });
+
+    if (error) {
+      toast.error("OAuth sign in failed", {
+        description: error.message,
+      });
+    }
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !loading) {
       handleSignin();
@@ -215,6 +227,7 @@ export function SigninForm() {
             <Button 
               variant="outline" 
               className="w-full py-2 border-border/60 bg-background/40 hover:bg-background/70 transition-colors"
+              onClick={() => handleOAuthSignIn("google")}
             >
               <Chrome className="w-4 h-4" />
               Continue with Google
@@ -230,6 +243,7 @@ export function SigninForm() {
             <Button 
               variant="outline" 
               className="w-full py-2 border-border/60 bg-background/40 hover:bg-background/70 transition-colors"
+              onClick={() => handleOAuthSignIn("github")}
             >
               <Github className="w-4 h-4" />
               Continue with GitHub
