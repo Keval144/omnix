@@ -30,11 +30,22 @@ export const metadata: Metadata = {
     siteName: "Omnix",
     locale: "en_US",
     type: "website",
+    images: [
+      {
+        url: "/twittercard.png",
+        width: 1200,
+        height: 630,
+        alt: "Omnix - AI-Powered Data Analysis Platform",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
+    site: "https://omnix.easelabs.in/",
+    creator: "@kansagra_keval",
     title: "Omnix - AI-Powered Notebooks",
     description: "Transform your ideas into clean AI-generated notebooks",
+    images: ["/twittercard.png"],
   },
   robots: {
     index: true,
