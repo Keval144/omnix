@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import { authenticatedJsonFetch, getChatHistory, type ChatMessageResponse } from "@/lib/api-client";
+import { authenticatedJsonFetch, getChatHistory, getSessionInfo, type ChatMessageResponse } from "@/lib/api-client";
+import type { ChatSessionInfo } from "@/lib/api-client";
 import { handleApiError } from "@/lib/errors";
 
 export type Message = {
@@ -9,6 +10,8 @@ export type Message = {
   content: string;
   created_at: string;
 };
+
+export type { ChatSessionInfo };
 
 function normalizeMessage(msg: ChatMessageResponse): Message {
   const role = typeof msg.role === "string" ? msg.role.toLowerCase() : "assistant";
@@ -31,6 +34,7 @@ function sortMessages(messages: Message[]): Message[] {
 export function useChat(projectId: string | null) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [sessionInfo, setSessionInfo] = useState<ChatSessionInfo | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [hasMore, setHasMore] = useState(false);
@@ -43,10 +47,20 @@ export function useChat(projectId: string | null) {
     return getChatHistory(projectId, cursorToLoad, limit);
   }, [projectId]);
 
+  const fetchSessionInfo = useCallback(async (sid: string) => {
+    try {
+      const info = await getSessionInfo(sid);
+      setSessionInfo(info);
+    } catch (error) {
+      console.error("Failed to fetch session info:", error);
+    }
+  }, []);
+
   useEffect(() => {
     if (!projectId) {
       setMessages([]);
       setSessionId(null);
+      setSessionInfo(null);
       setCursor(null);
       setHasMore(false);
       return;
@@ -54,6 +68,7 @@ export function useChat(projectId: string | null) {
 
     isInitialLoad.current = true;
     setMessages([]);
+    setSessionInfo(null);
     setCursor(null);
     setHasMore(false);
 
@@ -66,7 +81,9 @@ export function useChat(projectId: string | null) {
         setCursor(data.next_cursor);
         setHasMore(data.has_more);
         if (data.items.length > 0 && data.items[0].session_id) {
-          setSessionId(data.items[0].session_id);
+          const newSessionId = data.items[0].session_id;
+          setSessionId(newSessionId);
+          fetchSessionInfo(newSessionId);
         }
       } catch (error) {
         console.error("Failed to load chat history:", error);
@@ -77,7 +94,7 @@ export function useChat(projectId: string | null) {
     };
 
     fetchHistory();
-  }, [projectId, loadHistory]);
+  }, [projectId, loadHistory, fetchSessionInfo]);
 
   const loadMore = useCallback(async () => {
     if (!projectId || !cursor || isLoadingHistory) return;
@@ -128,6 +145,7 @@ export function useChat(projectId: string | null) {
       if (!sessionId) {
         setSessionId(res.session_id);
         userMsg.session_id = res.session_id;
+        fetchSessionInfo(res.session_id);
       }
 
       const normalizedMessages = res.messages.map(normalizeMessage);
@@ -143,11 +161,12 @@ export function useChat(projectId: string | null) {
     } finally {
       setIsLoading(false);
     }
-  }, [projectId, sessionId]);
+  }, [projectId, sessionId, fetchSessionInfo]);
 
   return {
     messages,
     sessionId,
+    sessionInfo,
     isLoading,
     isLoadingHistory,
     hasMore,

@@ -132,3 +132,19 @@ export async function getChatHistory(
     `/chat/history?${params.toString()}`,
   );
 }
+
+export type ChatSessionInfo = {
+  session_id: string;
+  project_id: string;
+  created_at: string;
+  total_tokens_used: number;
+  project_metadata: Record<string, unknown> | null;
+};
+
+export async function getSessionInfo(
+  sessionId: string,
+): Promise<ChatSessionInfo> {
+  return authenticatedJsonFetch<ChatSessionInfo>(
+    `/chat/session-info/${sessionId}`,
+  );
+}

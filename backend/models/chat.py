@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from enum import Enum
 
-from sqlalchemy import DateTime, Enum as SqlEnum, ForeignKey, Index, Text, func
+from sqlalchemy import DateTime, Enum as SqlEnum, ForeignKey, Index, Integer, Text, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -26,6 +26,7 @@ class ChatSession(Base):
         UUID(as_uuid=True), ForeignKey("projects.project_id", ondelete="CASCADE"), nullable=False
     )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    total_tokens_used: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     project: Mapped["Project"] = relationship(back_populates="chat_sessions", lazy="selectin")
     messages: Mapped[list["ChatMessage"]] = relationship(
@@ -44,7 +45,7 @@ class ChatMessage(Base):
     session_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("chat_sessions.session_id", ondelete="CASCADE"), nullable=False
     )
-    role: Mapped[ChatRole] = mapped_column(SqlEnum(ChatRole, name="chat_role"), nullable=False)
+    role: Mapped[ChatRole] = mapped_column(SqlEnum(ChatRole, name="chat_role", native_enum=False), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 

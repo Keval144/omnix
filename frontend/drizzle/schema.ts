@@ -285,3 +285,70 @@ export const jwks = pgTable("jwks", {
   createdAt: timestamp("created_at", { mode: "string" }).defaultNow().notNull(),
   expiresAt: timestamp("expires_at", { mode: "string" }),
 });
+
+export const tokenRequestType = pgEnum("token_request_type", [
+  "CHAT",
+  "SUMMARY",
+]);
+
+export const userProjectTokens = pgTable(
+  "user_project_tokens",
+  {
+    id: uuid().primaryKey().notNull(),
+    userId: varchar("user_id", { length: 255 }).notNull(),
+    projectId: uuid("project_id").notNull(),
+    totalTokensUsed: integer("total_tokens_used").notNull(),
+    lastUpdated: timestamp("last_updated", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("ix_user_project_tokens_user_id").using(
+      "btree",
+      table.userId.asc().nullsLast().op("text_ops"),
+    ),
+    index("ix_user_project_tokens_project_id").using(
+      "btree",
+      table.projectId.asc().nullsLast().op("uuid_ops"),
+    ),
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.projectId],
+      name: "user_project_tokens_project_id_fkey",
+    }).onDelete("cascade"),
+    unique("uq_user_project_tokens").on(table.userId, table.projectId),
+  ],
+);
+
+export const tokenUsageLogs = pgTable(
+  "token_usage_logs",
+  {
+    id: uuid().primaryKey().notNull(),
+    userId: varchar("user_id", { length: 255 }).notNull(),
+    projectId: uuid("project_id").notNull(),
+    requestType: tokenRequestType("request_type").notNull(),
+    tokensUsed: integer("tokens_used").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("ix_token_usage_logs_user_id").using(
+      "btree",
+      table.userId.asc().nullsLast().op("text_ops"),
+    ),
+    index("ix_token_usage_logs_project_id").using(
+      "btree",
+      table.projectId.asc().nullsLast().op("uuid_ops"),
+    ),
+    index("ix_token_usage_logs_created_at").using(
+      "btree",
+      table.createdAt.asc().nullsLast().op("timestamptz_ops"),
+    ),
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.projectId],
+      name: "token_usage_logs_project_id_fkey",
+    }).onDelete("cascade"),
+  ],
+);

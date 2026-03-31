@@ -3,12 +3,6 @@ uvicorn
 sqlalchemy>=2.0
 asyncpg
 aiosqlite
-asyncpg
-psycopg[binary]
-alembic
-pydantic-settings
-sqlalchemy>=2.0
-asyncpg
 psycopg[binary]
 alembic
 pydantic-settings
@@ -19,8 +13,10 @@ scikit-learn
 papermill
 nbformat
 python-multipart
-python-multipart
 cryptography
 kagglehub
 httpx
 chromadb
+tiktoken
+pytest
+pytest-asyncio

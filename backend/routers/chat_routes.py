@@ -1,3 +1,4 @@
+from datetime import datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, status
@@ -6,11 +7,28 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from constants import DEFAULT_CHAT_PAGE_SIZE
 from db.session import get_db_session
 from schemas.chat_schema import ChatMessageCreate, ChatMessagePage, ChatMessageResponse
-from schemas.chat_schema import ChatSessionResponse
+from schemas.chat_schema import ChatSessionResponse, ChatSessionInfoResponse
 from services.chat_service import ChatService
 from utils.auth import AuthenticatedUser, get_current_user
 
 router = APIRouter(prefix="/chat", tags=["chat"])
+
+SESSION_INFO_CACHE_TTL = 300
+_session_info_cache: dict[str, tuple[datetime, ChatSessionInfoResponse]] = {}
+
+
+def _get_cached_session_info(session_id: UUID, user_id: str) -> ChatSessionInfoResponse | None:
+    cache_key = f"{session_id}:{user_id}"
+    if cache_key in _session_info_cache:
+        cached_time, response = _session_info_cache[cache_key]
+        if (datetime.now() - cached_time).total_seconds() < SESSION_INFO_CACHE_TTL:
+            return response
+    return None
+
+
+def _set_cached_session_info(session_id: UUID, user_id: str, response: ChatSessionInfoResponse) -> None:
+    cache_key = f"{session_id}:{user_id}"
+    _session_info_cache[cache_key] = (datetime.now(), response)
 
 
 @router.post("/message", status_code=status.HTTP_201_CREATED)
@@ -58,6 +76,22 @@ async def get_session(
 ) -> ChatSessionResponse:
     chat_session = await ChatService(session).get_session(session_id, current_user.user_id)
     return ChatSessionResponse.model_validate(chat_session)
+
+
+@router.get("/session-info/{session_id}", response_model=ChatSessionInfoResponse)
+async def get_session_info(
+    session_id: UUID,
+    session: AsyncSession = Depends(get_db_session),
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> ChatSessionInfoResponse:
+    cached = _get_cached_session_info(session_id, current_user.user_id)
+    if cached:
+        return cached
+
+    info = await ChatService(session).get_session_info(session_id, current_user.user_id)
+    response = ChatSessionInfoResponse(**info)
+    _set_cached_session_info(session_id, current_user.user_id, response)
+    return response
 
 
 @router.get("/history", response_model=ChatMessagePage)

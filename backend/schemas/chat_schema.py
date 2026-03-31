@@ -30,6 +30,16 @@ class ChatSessionResponse(BaseModel):
     created_at: datetime
 
 
+class ChatSessionInfoResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    session_id: UUID
+    project_id: UUID
+    created_at: datetime
+    total_tokens_used: int
+    project_metadata: dict | None
+
+
 class ChatMessagePage(BaseModel):
     items: list[ChatMessageResponse]
     next_cursor: UUID | None

@@ -14,16 +14,33 @@ import {
   MessageSquare,
   Send,
   Sparkles,
+  Upload,
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/shadcn-ui/avatar";
+import {
+  Avatar,
+  AvatarFallback,
+  AvatarImage,
+} from "@/components/shadcn-ui/avatar";
 import { Button } from "@/components/shadcn-ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/shadcn-ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/shadcn-ui/card";
 import { Input } from "@/components/shadcn-ui/input";
 import { ScrollArea } from "@/components/shadcn-ui/scroll-area";
 import { LoadingSpinner, EmptyState } from "@/components/ui/loading-spinner";
-import { useChat, useProject, generateNotebookAction, downloadFile } from "@/lib/hooks";
+import {
+  useChat,
+  useProject,
+  generateNotebookAction,
+  downloadFile,
+  useUploadDataset,
+} from "@/lib/hooks";
+import type { ChatSessionInfo } from "@/lib/hooks";
 import { handleApiError } from "@/lib/errors";
 
 const ML_SUGGESTIONS = [
@@ -37,14 +54,29 @@ function ChatContent() {
   const searchParams = useSearchParams();
   const projectId = searchParams.get("project_id");
   const chatKey = `chat-${projectId || "no-project"}`;
-  
-  const { project, isLoading: isLoadingProject, refresh: refreshProject } = useProject(projectId);
-  const { messages, isLoading, isLoadingHistory, hasMore, loadMore, sendMessage } = useChat(projectId);
-  
+
+  const {
+    project,
+    isLoading: isLoadingProject,
+    refresh: refreshProject,
+  } = useProject(projectId);
+  const {
+    messages,
+    isLoading,
+    isLoadingHistory,
+    hasMore,
+    loadMore,
+    sendMessage,
+    sessionInfo,
+  } = useChat(projectId);
+
+  const { uploadDataset, isUploading: isUploadingDataset } = useUploadDataset();
+
   const [input, setInput] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -53,7 +85,8 @@ function ChatContent() {
       if (scrollTop < 100) loadMore();
     };
     scrollContainerRef.current?.addEventListener("scroll", handleScroll);
-    return () => scrollContainerRef.current?.removeEventListener("scroll", handleScroll);
+    return () =>
+      scrollContainerRef.current?.removeEventListener("scroll", handleScroll);
   }, [hasMore, isLoadingHistory, loadMore]);
 
   const handleSend = async (e: React.FormEvent) => {
@@ -86,6 +119,21 @@ function ChatContent() {
     }
   };
 
+  const handleUploadDataset = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !projectId) return;
+
+    try {
+      await uploadDataset(projectId, file);
+      toast.success("Dataset uploaded successfully!");
+      refreshProject();
+    } catch (error) {
+      handleApiError(error, "Failed to upload dataset");
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
   if (!projectId) {
     return (
       <EmptyState
@@ -100,10 +148,14 @@ function ChatContent() {
     <div className="flex h-full min-h-0 flex-col gap-4 py-2 pt-4 lg:flex-row">
       <ProjectSidebar
         project={project}
+        sessionInfo={sessionInfo}
         isLoading={isLoadingProject}
         isGenerating={isGenerating}
+        isUploading={isUploadingDataset}
         onGenerateNotebook={handleGenerateNotebook}
         onDownload={handleDownload}
+        onUploadDataset={handleUploadDataset}
+        fileInputRef={fileInputRef}
       />
 
       <ChatArea
@@ -124,16 +176,28 @@ function ChatContent() {
 
 function ProjectSidebar({
   project,
+  sessionInfo,
   isLoading,
   isGenerating,
+  isUploading,
   onGenerateNotebook,
   onDownload,
+  onUploadDataset,
+  fileInputRef,
 }: {
-  project?: { metadata?: { name?: string; description?: string }; dataset_path: string | null; notebook_path: string | null } | null;
+  project?: {
+    metadata?: { name?: string; description?: string; tags?: string[] };
+    dataset_path: string | null;
+    notebook_path: string | null;
+  } | null;
+  sessionInfo: ChatSessionInfo | null;
   isLoading: boolean;
   isGenerating: boolean;
+  isUploading: boolean;
   onGenerateNotebook: () => void;
   onDownload: (path: string) => void;
+  onUploadDataset: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  fileInputRef: React.RefObject<HTMLInputElement | null>;
 }) {
   return (
     <div className="w-full space-y-4 lg:w-72 lg:shrink-0">
@@ -155,25 +219,64 @@ function ProjectSidebar({
                     {project.metadata.description}
                   </p>
                 )}
+                {project.metadata?.tags && project.metadata.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {project.metadata.tags.map((tag) => (
+                      <span
+                        key={tag}
+                        className="rounded-full bg-secondary px-2 py-0.5 text-[10px] text-secondary-foreground"
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
               <div className="space-y-2">
-                <p className="text-xs font-medium text-muted-foreground">Dataset</p>
+                <p className="text-xs font-medium text-muted-foreground">
+                  Dataset
+                </p>
                 {project.dataset_path ? (
                   <div className="flex items-center gap-2 text-xs text-green-600">
                     <FileSpreadsheet className="h-3 w-3 shrink-0" />
                     <span>Uploaded</span>
                   </div>
                 ) : (
-                  <p className="text-xs text-muted-foreground">No dataset</p>
+                  <>
+                    <p className="text-xs text-muted-foreground">No dataset</p>
+                    <input
+                      type="file"
+                      accept=".csv,.xls,.xlsx"
+                      className="hidden"
+                      ref={fileInputRef}
+                      onChange={onUploadDataset}
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full justify-start gap-2 text-xs cursor-pointer"
+                      disabled={isUploading}
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      {isUploading ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <Upload className="h-3 w-3" />
+                      )}
+                      Upload Dataset
+                    </Button>
+                  </>
                 )}
               </div>
               <div className="space-y-2">
-                <p className="text-xs font-medium text-muted-foreground">Notebook</p>
+                <p className="text-xs font-medium text-muted-foreground">
+                  Notebook
+                </p>
                 {project.notebook_path ? (
                   <Button
                     variant="outline"
                     size="sm"
-                    className="w-full justify-start gap-2 text-xs"
+                    className="w-full justify-start gap-2 text-xs cursor-pointer"
                     onClick={() => onDownload(project.notebook_path!)}
                   >
                     <Download className="h-3 w-3" />
@@ -183,7 +286,7 @@ function ProjectSidebar({
                   <Button
                     variant="outline"
                     size="sm"
-                    className="w-full justify-start gap-2 text-xs"
+                    className="w-full justify-start gap-2 text-xs cursor-pointer"
                     disabled={isGenerating}
                     onClick={onGenerateNotebook}
                   >
@@ -195,9 +298,24 @@ function ProjectSidebar({
                     Generate Notebook
                   </Button>
                 ) : (
-                  <p className="text-xs text-muted-foreground">Upload dataset first</p>
+                  <p className="text-xs text-muted-foreground">
+                    Upload dataset first
+                  </p>
                 )}
               </div>
+              {sessionInfo && (
+                <div className="space-y-2 border-t pt-3">
+                  <p className="text-xs font-medium text-muted-foreground">
+                    Session Stats
+                  </p>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">Tokens Used:</span>
+                    <span className="font-medium">
+                      {sessionInfo.total_tokens_used.toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+              )}
             </>
           ) : (
             <p className="text-xs text-muted-foreground">No project found</p>
@@ -226,7 +344,12 @@ function ChatArea({
   isLoading: boolean;
   isLoadingHistory: boolean;
   hasMore: boolean;
-  messages: { message_id: string; role: "user" | "assistant"; content: string; created_at: string }[];
+  messages: {
+    message_id: string;
+    role: "user" | "assistant";
+    content: string;
+    created_at: string;
+  }[];
   hasDataset: boolean;
   scrollContainerRef: React.RefObject<HTMLDivElement | null>;
   scrollRef: React.RefObject<HTMLDivElement | null>;
@@ -234,9 +357,9 @@ function ChatArea({
   return (
     <div className="flex flex-1 min-h-0 flex-col rounded-lg border bg-background shadow-sm">
       <ChatHeader />
-      
-      <ScrollArea 
-        className="min-h-0 flex-1 px-4 py-4 sm:px-5" 
+
+      <ScrollArea
+        className="min-h-0 flex-1 px-4 py-4 sm:px-5"
         ref={scrollContainerRef}
       >
         <div className="flex flex-col gap-6">
@@ -263,7 +386,9 @@ function ChatArea({
                   <div className="flex max-w-[88%] flex-col gap-1 sm:max-w-[80%]">
                     <div className="rounded-2xl bg-muted px-4 py-3">
                       <div className="flex items-center gap-1">
-                        <span className="text-xs text-muted-foreground">Thinking</span>
+                        <span className="text-xs text-muted-foreground">
+                          Thinking
+                        </span>
                         <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                       </div>
                     </div>
@@ -295,7 +420,9 @@ function ChatHeader() {
         </div>
         <div className="min-w-0">
           <h2 className="font-semibold tracking-tight">Project Assistant</h2>
-          <p className="text-xs text-muted-foreground">Ask anything about your dataset</p>
+          <p className="text-xs text-muted-foreground">
+            Ask anything about your dataset
+          </p>
         </div>
       </div>
     </div>
@@ -378,7 +505,9 @@ function ChatMessage({
           )}
         </div>
         <span className="text-[10px] text-muted-foreground">
-          {message.created_at ? new Date(message.created_at).toLocaleTimeString() : "Now"}
+          {message.created_at
+            ? new Date(message.created_at).toLocaleTimeString()
+            : "Now"}
         </span>
       </div>
     </div>
