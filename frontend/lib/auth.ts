@@ -10,8 +10,20 @@ export const createAuth = () => {
   const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
   const githubClientId = process.env.GITHUB_CLIENT_ID;
   const githubClientSecret = process.env.GITHUB_CLIENT_SECRET;
-  const hasGoogle = Boolean(googleClientId) && Boolean(googleClientSecret);
-  const hasGithub = Boolean(githubClientId) && Boolean(githubClientSecret);
+
+  const socialProviders: Parameters<typeof betterAuth>[0]["socialProviders"] = {};
+  if (googleClientId && googleClientSecret) {
+    socialProviders.google = {
+      clientId: googleClientId,
+      clientSecret: googleClientSecret,
+    };
+  }
+  if (githubClientId && githubClientSecret) {
+    socialProviders.github = {
+      clientId: githubClientId,
+      clientSecret: githubClientSecret,
+    };
+  }
 
   return betterAuth({
     database: drizzleAdapter(db, {
@@ -22,24 +34,7 @@ export const createAuth = () => {
       enabled: true,
       autoSignIn: true,
     },
-    socialProviders: {
-      ...(hasGoogle
-        ? {
-            google: {
-              clientId: googleClientId,
-              clientSecret: googleClientSecret,
-            },
-          }
-        : {}),
-      ...(hasGithub
-        ? {
-            github: {
-              clientId: githubClientId,
-              clientSecret: githubClientSecret,
-            },
-          }
-        : {}),
-    },
+    socialProviders,
     plugins: [
       lastLoginMethod({
         cookieName: "better-auth.last_used_login_method",
