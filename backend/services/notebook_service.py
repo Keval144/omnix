@@ -16,7 +16,7 @@ from services.dataset_analyzer import analyze_dataset_file
 from services.project_service import ProjectService
 from services.rag_service import retrieve_ml_context
 from utils.storage import (
-    build_notebook_directory,
+    build_dataset_directory,
     build_public_storage_path,
     resolve_storage_path,
 )
@@ -53,7 +53,7 @@ class NotebookService:
             or 0
         ) + 1
 
-        notebook_dir = build_notebook_directory(user_id, project.project_slug)
+        notebook_dir = build_dataset_directory(user_id, project.project_slug)
         os.makedirs(notebook_dir, exist_ok=True)
 
         filename = f"notebook_v{next_version}.ipynb"
@@ -63,7 +63,7 @@ class NotebookService:
         with open(absolute_path, "w", encoding="utf-8") as file_obj:
             nbformat.write(notebook, file_obj)
 
-        public_path = build_public_storage_path("notebooks", user_id, project.project_slug, filename)
+        public_path = build_public_storage_path("datasets", user_id, project.project_slug, filename)
         notebook_record = Notebook(
             project_id=project.project_id,
             notebook_path=public_path,

@@ -1,4 +1,4 @@
-export { checkRole } from "@/lib/auth/check-role";
-export { authClient } from "@/lib/auth/client";
-export { authPlugins } from "@/lib/auth/plugins";
-export { auth, createAuth } from "@/lib/auth";
+export { checkRole } from "./check-role";
+export { authClient } from "./client";
+export { authPlugins } from "./plugins";
+export { auth, createAuth } from "../auth";

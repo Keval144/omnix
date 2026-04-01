@@ -8,6 +8,7 @@ NOTEBOOK_SECTIONS_TEMPLATES = {
         {"key": "feature_engineering", "title": "Feature Engineering"},
         {"key": "train_test_split", "title": "Train Test Split"},
         {"key": "model_training", "title": "Model Training"},
+        {"key": "model_saving", "title": "Model Saving"},
         {"key": "evaluation", "title": "Model Evaluation"},
         {"key": "visualization", "title": "Visualization"},
     ],
@@ -20,6 +21,7 @@ NOTEBOOK_SECTIONS_TEMPLATES = {
         {"key": "feature_engineering", "title": "Feature Engineering"},
         {"key": "train_test_split", "title": "Train Test Split"},
         {"key": "model_training", "title": "Model Training"},
+        {"key": "model_saving", "title": "Model Saving"},
         {"key": "evaluation", "title": "Model Evaluation"},
         {"key": "residual_analysis", "title": "Residual Analysis"},
         {"key": "visualization", "title": "Visualization"},
@@ -33,6 +35,7 @@ NOTEBOOK_SECTIONS_TEMPLATES = {
         {"key": "vectorization", "title": "Vectorization / Embeddings"},
         {"key": "train_test_split", "title": "Train Test Split"},
         {"key": "model_training", "title": "Model Training"},
+        {"key": "model_saving", "title": "Model Saving"},
         {"key": "evaluation", "title": "Model Evaluation"},
         {"key": "visualization", "title": "Visualization"},
     ],
@@ -45,6 +48,7 @@ NOTEBOOK_SECTIONS_TEMPLATES = {
         {"key": "feature_engineering", "title": "Time-Based Feature Engineering"},
         {"key": "train_test_split", "title": "Time-Based Train Test Split"},
         {"key": "model_training", "title": "Model Training"},
+        {"key": "model_saving", "title": "Model Saving"},
         {"key": "evaluation", "title": "Model Evaluation"},
         {"key": "forecasting", "title": "Forecasting"},
         {"key": "visualization", "title": "Visualization"},
@@ -58,6 +62,7 @@ NOTEBOOK_SECTIONS_TEMPLATES = {
         {"key": "model_compilation", "title": "Model Compilation"},
         {"key": "callbacks", "title": "Callbacks & Early Stopping"},
         {"key": "training", "title": "Model Training"},
+        {"key": "model_saving", "title": "Model Saving"},
         {"key": "evaluation", "title": "Model Evaluation"},
         {"key": "visualization", "title": "Training Visualization"},
     ],
@@ -69,6 +74,7 @@ NOTEBOOK_SECTIONS_TEMPLATES = {
         {"key": "train_test_split", "title": "Train Test Split"},
         {"key": "model_architecture", "title": "Model Architecture"},
         {"key": "training", "title": "Model Training"},
+        {"key": "model_saving", "title": "Model Saving"},
         {"key": "evaluation", "title": "Model Evaluation"},
         {"key": "visualization", "title": "Results Visualization"},
     ],
@@ -82,6 +88,7 @@ NOTEBOOK_SECTIONS_TEMPLATES = {
         {"key": "train_test_split", "title": "Train Test Split"},
         {"key": "model_architecture", "title": "Language Model Architecture"},
         {"key": "training", "title": "Model Training"},
+        {"key": "model_saving", "title": "Model Saving"},
         {"key": "generation", "title": "Text Generation"},
     ],
     "default": [
@@ -92,6 +99,7 @@ NOTEBOOK_SECTIONS_TEMPLATES = {
         {"key": "feature_engineering", "title": "Feature Engineering"},
         {"key": "train_test_split", "title": "Train Test Split"},
         {"key": "model_training", "title": "Model Training"},
+        {"key": "model_saving", "title": "Model Saving"},
         {"key": "evaluation", "title": "Model Evaluation"},
         {"key": "visualization", "title": "Visualization"},
     ],
@@ -100,287 +108,311 @@ NOTEBOOK_SECTIONS_TEMPLATES = {
 PROBLEM_PROMPTS = {
     "tabular_classification": """You are a senior machine learning engineer specializing in tabular classification.
 
-Generate a Kaggle-style classification notebook for tabular data.
-
-Machine Learning Knowledge:
-{context}
-
-Dataset Information:
-{dataset_info}
-
-Dataset filename: {file_name}
-
-Target variable type: Classification (categorical target)
-Recommended models: Random Forest, XGBoost, LightGBM, Logistic Regression
-Evaluation metrics: accuracy, precision, recall, f1-score, roc-auc, confusion matrix
-
-Return ONLY valid JSON with the following structure:
+                                Generate a Kaggle-style classification notebook for tabular data.
 
-{{
-"imports": "",
-"data_loading": "",
-"eda": "",
-"class_analysis": "",
-"preprocessing": "",
-"feature_engineering": "",
-"train_test_split": "",
-"model_training": "",
-"evaluation": "",
-"visualization": ""
-}}
+                                Machine Learning Knowledge:
+                                {context}
 
-Rules:
-- Return JSON only
-- Do not include explanations
-- Only Python code inside the fields""",
-
-    "tabular_regression": """You are a senior machine learning engineer specializing in tabular regression.
-
-Generate a Kaggle-style regression notebook for tabular data.
-
-Machine Learning Knowledge:
-{context}
-
-Dataset Information:
-{dataset_info}
-
-Dataset filename: {file_name}
-
-Target variable type: Regression (continuous target)
-Recommended models: Random Forest, XGBoost, LightGBM, Ridge, Linear Regression
-Evaluation metrics: RMSE, MAE, R², MAPE
-
-Return ONLY valid JSON with the following structure:
+                                Dataset Information:
+                                {dataset_info}
 
-{{
-"imports": "",
-"data_loading": "",
-"eda": "",
-"target_analysis": "",
-"preprocessing": "",
-"feature_engineering": "",
-"train_test_split": "",
-"model_training": "",
-"evaluation": "",
-"residual_analysis": "",
-"visualization": ""
-}}
+                                Dataset filename: {file_name}
+
+                                Target variable type: Classification (categorical target)
+                                Recommended models: Random Forest, XGBoost, LightGBM, Logistic Regression
+                                Evaluation metrics: accuracy, precision, recall, f1-score, roc-auc, confusion matrix
+
+                                Model Saving: Use joblib.dump() or pickle to save the trained model to disk. Include code for saving the model to a file (e.g., 'model.joblib') and loading it back for predictions. Save any important preprocessing objects along with the model.
+
+                                Return ONLY valid JSON with the following structure:
+
+                                {{
+                                "imports": "",
+                                "data_loading": "",
+                                "eda": "",
+                                "class_analysis": "",
+                                "preprocessing": "",
+                                "feature_engineering": "",
+                                "train_test_split": "",
+                                "model_training": "",
+                                "model_saving": "",
+                                "evaluation": "",
+                                "visualization": ""
+                                }}
 
-Rules:
-- Return JSON only
-- Do not include explanations
-- Only Python code inside the fields""",
-
-    "nlp": """You are a senior NLP engineer specializing in text classification and sentiment analysis.
-
-Generate a Kaggle-style NLP notebook.
-
-Machine Learning Knowledge:
-{context}
-
-Dataset Information:
-{dataset_info}
-
-Dataset filename: {file_name}
-
-Problem type: NLP (Text Classification/Sentiment Analysis)
-Recommended approaches: TF-IDF + Logistic Regression, BERT, DistilBERT, transformers
-Evaluation metrics: accuracy, f1-score, precision, recall
-
-Return ONLY valid JSON with the following structure:
+                                Rules:
+                                - Return JSON only
+                                - Do not include explanations
+                                - Only Python code inside the fields""",
 
-{{
-"imports": "",
-"data_loading": "",
-"text_exploration": "",
-"text_cleaning": "",
-"tokenization": "",
-"vectorization": "",
-"train_test_split": "",
-"model_training": "",
-"evaluation": "",
-"visualization": ""
-}}
+                                    "tabular_regression": """You are a senior machine learning engineer specializing in tabular regression.
 
-Rules:
-- Return JSON only
-- Do not include explanations
-- Only Python code inside the fields""",
+                                Generate a Kaggle-style regression notebook for tabular data.
 
-    "time_series": """You are a senior data scientist specializing in time series forecasting.
+                                Machine Learning Knowledge:
+                                {context}
 
-Generate a Kaggle-style time series forecasting notebook.
-
-Machine Learning Knowledge:
-{context}
-
-Dataset Information:
-{dataset_info}
+                                Dataset Information:
+                                {dataset_info}
 
-Dataset filename: {file_name}
+                                Dataset filename: {file_name}
 
-Problem type: Time Series Forecasting
-Recommended approaches: ARIMA, Prophet, LSTM, XGBoost with lag features
-Evaluation metrics: RMSE, MAE, MAPE, SMAPE
+                                Target variable type: Regression (continuous target)
+                                Recommended models: Random Forest, XGBoost, LightGBM, Ridge, Linear Regression
+                                Evaluation metrics: RMSE, MAE, R^2, MAPE
 
-Return ONLY valid JSON with the following structure:
+                                Model Saving: Use joblib.dump() or pickle to save the trained model to disk. Include code for saving the model to a file (e.g., 'model.joblib') and loading it back for predictions.
+
+                                Return ONLY valid JSON with the following structure:
 
-{{
-"imports": "",
-"data_loading": "",
-"time_exploration": "",
-"decomposition": "",
-"preprocessing": "",
-"feature_engineering": "",
-"train_test_split": "",
-"model_training": "",
-"evaluation": "",
-"forecasting": "",
-"visualization": ""
-}}
+                                {{
+                                "imports": "",
+                                "data_loading": "",
+                                "eda": "",
+                                "target_analysis": "",
+                                "preprocessing": "",
+                                "feature_engineering": "",
+                                "train_test_split": "",
+                                "model_training": "",
+                                "model_saving": "",
+                                "evaluation": "",
+                                "residual_analysis": "",
+                                "visualization": ""
+                                }}
 
-Rules:
-- Return JSON only
-- Do not include explanations
-- Only Python code inside the fields""",
+                                Rules:
+                                - Return JSON only
+                                - Do not include explanations
+                                - Only Python code inside the fields""",
 
-    "deep_learning": """You are a senior deep learning engineer specializing in neural networks.
-
-Generate a Kaggle-style deep learning notebook using TensorFlow/Keras or PyTorch.
+                                    "nlp": """You are a senior NLP engineer specializing in text classification and sentiment analysis.
 
-Machine Learning Knowledge:
-{context}
-
-Dataset Information:
-{dataset_info}
+                                Generate a Kaggle-style NLP notebook.
 
-Dataset filename: {file_name}
+                                Machine Learning Knowledge:
+                                {context}
 
-Problem type: Deep Learning / Neural Network
-Recommended architectures: MLP, Dense networks with BatchNorm and Dropout
-Use Adam optimizer, appropriate loss functions for classification/regression
-Include early stopping, learning rate reduction callbacks
+                                Dataset Information:
+                                {dataset_info}
 
-Return ONLY valid JSON with the following structure:
+                                Dataset filename: {file_name}
 
-{{
-"imports": "",
-"data_loading": "",
-"preprocessing": "",
-"dataset_split": "",
-"model_architecture": "",
-"model_compilation": "",
-"callbacks": "",
-"training": "",
-"evaluation": "",
-"visualization": ""
-}}
+                                Problem type: NLP (Text Classification/Sentiment Analysis)
+                                Recommended approaches: TF-IDF + Logistic Regression, BERT, DistilBERT, transformers
+                                Evaluation metrics: accuracy, f1-score, precision, recall
 
-Rules:
-- Return JSON only
-- Do not include explanations
-- Only Python code inside the fields""",
+                                Model Saving: Save trained model, tokenizer, vectorizer to disk using joblib or pickle. Include code to save and load back for predictions.
+
+                                Return ONLY valid JSON with the following structure:
 
-    "computer_vision": """You are a senior computer vision engineer specializing in image classification.
-
-Generate a Kaggle-style computer vision notebook.
-
-Machine Learning Knowledge:
-{context}
-
-Dataset Information:
-{ dataset_info}
-
-Dataset filename: {file_name}
-
-Problem type: Computer Vision (Image Classification)
-Recommended approaches: CNN, Transfer Learning (ResNet, VGG, EfficientNet)
-Use ImageDataGenerator or tf.data for data pipeline
-
-Return ONLY valid JSON with the following structure:
-
-{{
-"imports": "",
-"data_loading": "",
-"preprocessing": "",
-"augmentation": "",
-"train_test_split": "",
-"model_architecture": "",
-"training": "",
-"evaluation": "",
-"visualization": ""
-}}
-
-Rules:
-- Return JSON only
-- Do not include explanations
-- Only Python code inside the fields""",
-
-    "text_generation": """You are a senior NLP engineer specializing in text generation and language modeling.
-
-Generate a Kaggle-style text generation notebook.
-
-Machine Learning Knowledge:
-{context}
-
-Dataset Information:
-{dataset_info}
-
-Dataset filename: {file_name}
-
-Problem type: Text Generation / Language Modeling
-Recommended approaches: LSTM, GRU, Transformer, GPT-style models
-
-Return ONLY valid JSON with the following structure:
-
-{{
-"imports": "",
-"data_loading": "",
-"text_cleaning": "",
-"tokenization": "",
-"vocabulary": "",
-"sequences": "",
-"train_test_split": "",
-"model_architecture": "",
-"training": "",
-"generation": ""
-}}
-
-Rules:
-- Return JSON only
-- Do not include explanations
-- Only Python code inside the fields""",
-
-    "default": """You are a senior machine learning engineer.
-
-Generate a Kaggle-style machine learning notebook.
-
-Machine Learning Knowledge:
-{context}
-
-Dataset Information:
-{dataset_info}
-
-Dataset filename: {file_name}
-
-Return ONLY valid JSON with the following structure:
-
-{{
-"imports": "",
-"data_loading": "",
-"eda": "",
-"preprocessing": "",
-"feature_engineering": "",
-"train_test_split": "",
-"model_training": "",
-"evaluation": "",
-"visualization": ""
-}}
-
-Rules:
-- Return JSON only
-- Do not include explanations
-- Only Python code inside the fields""",
+                                {{
+                                "imports": "",
+                                "data_loading": "",
+                                "text_exploration": "",
+                                "text_cleaning": "",
+                                "tokenization": "",
+                                "vectorization": "",
+                                "train_test_split": "",
+                                "model_training": "",
+                                "model_saving": "",
+                                "evaluation": "",
+                                "visualization": ""
+                                }}
+
+                                Rules:
+                                - Return JSON only
+                                - Do not include explanations
+                                - Only Python code inside the fields""",
+
+                                    "time_series": """You are a senior data scientist specializing in time series forecasting.
+
+                                Generate a Kaggle-style time series forecasting notebook.
+
+                                Machine Learning Knowledge:
+                                {context}
+
+                                Dataset Information:
+                                {dataset_info}
+
+                                Dataset filename: {file_name}
+
+                                Problem type: Time Series Forecasting
+                                Recommended approaches: ARIMA, Prophet, LSTM, XGBoost with lag features
+                                Evaluation metrics: RMSE, MAE, MAPE, SMAPE
+
+                                Model Saving: Save trained model to disk using appropriate method (joblib for sklearn, model.save() for Keras, torch.save() for PyTorch). Include code for saving and loading.
+
+                                Return ONLY valid JSON with the following structure:
+
+                                {{
+                                "imports": "",
+                                "data_loading": "",
+                                "time_exploration": "",
+                                "decomposition": "",
+                                "preprocessing": "",
+                                "feature_engineering": "",
+                                "train_test_split": "",
+                                "model_training": "",
+                                "model_saving": "",
+                                "evaluation": "",
+                                "forecasting": "",
+                                "visualization": ""
+                                }}
+
+                                Rules:
+                                - Return JSON only
+                                - Do not include explanations
+                                - Only Python code inside the fields""",
+
+                                    "deep_learning": """You are a senior deep learning engineer specializing in neural networks.
+
+                                Generate a Kaggle-style deep learning notebook using TensorFlow/Keras or PyTorch.
+
+                                Machine Learning Knowledge:
+                                {context}
+
+                                Dataset Information:
+                                {dataset_info}
+
+                                Dataset filename: {file_name}
+
+                                Problem type: Deep Learning / Neural Network
+                                Recommended architectures: MLP, Dense networks with BatchNorm and Dropout
+                                Use Adam optimizer, appropriate loss functions for classification/regression
+                                Include early stopping, learning rate reduction callbacks
+
+                                Model Saving: Save model weights and architecture using model.save() for Keras or torch.save() for PyTorch. Include code for saving the complete model and loading it back.
+
+                                Return ONLY valid JSON with the following structure:
+
+                                {{
+                                "imports": "",
+                                "data_loading": "",
+                                "preprocessing": "",
+                                "dataset_split": "",
+                                "model_architecture": "",
+                                "model_compilation": "",
+                                "callbacks": "",
+                                "training": "",
+                                "model_saving": "",
+                                "evaluation": "",
+                                "visualization": ""
+                                }}
+
+                                Rules:
+                                - Return JSON only
+                                - Do not include explanations
+                                - Only Python code inside the fields""",
+
+                                    "computer_vision": """You are a senior computer vision engineer specializing in image classification.
+
+                                Generate a Kaggle-style computer vision notebook.
+
+                                Machine Learning Knowledge:
+                                {context}
+
+                                Dataset Information:
+                                { dataset_info}
+
+                                Dataset filename: {file_name}
+
+                                Problem type: Computer Vision (Image Classification)
+                                Recommended approaches: CNN, Transfer Learning (ResNet, VGG, EfficientNet)
+                                Use ImageDataGenerator or tf.data for data pipeline
+
+                                Model Saving: Save trained model using model.save() for Keras or torch.save() for PyTorch. Include code for saving model weights and loading for inference.
+
+                                Return ONLY valid JSON with the following structure:
+
+                                {{
+                                "imports": "",
+                                "data_loading": "",
+                                "preprocessing": "",
+                                "augmentation": "",
+                                "train_test_split": "",
+                                "model_architecture": "",
+                                "training": "",
+                                "model_saving": "",
+                                "evaluation": "",
+                                "visualization": ""
+                                }}
+
+                                Rules:
+                                - Return JSON only
+                                - Do not include explanations
+                                - Only Python code inside the fields""",
+
+                                    "text_generation": """You are a senior NLP engineer specializing in text generation and language modeling.
+
+                                Generate a Kaggle-style text generation notebook.
+
+                                Machine Learning Knowledge:
+                                {context}
+
+                                Dataset Information:
+                                {dataset_info}
+
+                                Dataset filename: {file_name}
+
+                                Problem type: Text Generation / Language Modeling
+                                Recommended approaches: LSTM, GRU, Transformer, GPT-style models
+
+                                Model Saving: Save model weights, tokenizer, and vocabulary to disk. Use appropriate methods (model.save() for Keras, torch.save() for PyTorch, pickle for other components).
+
+                                Return ONLY valid JSON with the following structure:
+
+                                {{
+                                "imports": "",
+                                "data_loading": "",
+                                "text_cleaning": "",
+                                "tokenization": "",
+                                "vocabulary": "",
+                                "sequences": "",
+                                "train_test_split": "",
+                                "model_architecture": "",
+                                "training": "",
+                                "model_saving": "",
+                                "generation": ""
+                                }}
+
+                                Rules:
+                                - Return JSON only
+                                - Do not include explanations
+                                - Only Python code inside the fields""",
+
+                                    "default": """You are a senior machine learning engineer.
+
+                                Generate a Kaggle-style machine learning notebook.
+
+                                Machine Learning Knowledge:
+                                {context}
+
+                                Dataset Information:
+                                {dataset_info}
+
+                                Dataset filename: {file_name}
+
+                                Model Saving: Save trained model to disk using joblib.dump() or pickle. Include code for saving and loading the model for predictions.
+
+                                Return ONLY valid JSON with the following structure:
+
+                                {{
+                                "imports": "",
+                                "data_loading": "",
+                                "eda": "",
+                                "preprocessing": "",
+                                "feature_engineering": "",
+                                "train_test_split": "",
+                                "model_training": "",
+                                "model_saving": "",
+                                "evaluation": "",
+                                "visualization": ""
+                                }}
+
+                                Rules:
+                                - Return JSON only
+                                - Do not include explanations
+                                - Only Python code inside the fields""",
 }
 
 

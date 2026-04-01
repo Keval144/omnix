@@ -5,7 +5,7 @@ from sqlalchemy import engine_from_config, pool
 
 from config import get_settings
 from db.base import Base
-from models import auth, chat, dataset, notebook, project, token  # noqa: F401
+from models import auth_tables, chat, dataset, notebook, project, token  # noqa: F401
 
 config = context.config
 settings = get_settings()

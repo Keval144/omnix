@@ -55,20 +55,20 @@ export function SignupForm() {
 
   useEffect(() => {
     let method = authClient.getLastUsedLoginMethod();
-    console.log('Last used login method from client:', method);
-    
+    console.log("Last used login method from client:", method);
+
     if (!method) {
-      const cookies = document.cookie.split(';');
+      const cookies = document.cookie.split(";");
       for (let cookie of cookies) {
-        const [name, value] = cookie.trim().split('=');
-        if (name === 'better-auth.last_used_login_method') {
+        const [name, value] = cookie.trim().split("=");
+        if (name === "better-auth.last_used_login_method") {
           method = value;
-          console.log('Found cookie:', value);
+          console.log("Found cookie:", value);
           break;
         }
       }
     }
-    
+
     setLastMethod(method);
   }, []);
 
@@ -129,20 +129,29 @@ export function SignupForm() {
   return (
     <Card className="mx-auto w-full max-w-md border-border/40 bg-card/80 shadow-xl shadow-black/10 backdrop-blur-2xl">
       <CardHeader className="space-y-1 text-center pb-6">
-        <Link href="/" className="flex items-center justify-center gap-2 mb-1 hover:opacity-80 transition-opacity">
+        <Link
+          href="/"
+          className="flex items-center justify-center gap-2 mb-1 hover:opacity-80 transition-opacity"
+        >
           <Logo size={28} />
           <span className="text-2xl font-bold tracking-tight">Omnix</span>
         </Link>
 
-        <CardTitle className="text-xl font-semibold">Create your account</CardTitle>
-        <CardDescription className="text-sm">Start building powerful AI workflows</CardDescription>
+        <CardTitle className="text-xl font-semibold">
+          Create your account
+        </CardTitle>
+        <CardDescription className="text-sm">
+          Start building powerful AI workflows
+        </CardDescription>
       </CardHeader>
 
       <CardContent className="pb-6">
         <form onSubmit={handleSignup} className="flex flex-col gap-4">
           {/* Name */}
           <div className="space-y-1.5">
-            <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Name</Label>
+            <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              Name
+            </Label>
 
             <div className="relative">
               <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -165,7 +174,9 @@ export function SignupForm() {
 
           {/* Email */}
           <div className="space-y-1.5">
-            <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Email</Label>
+            <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              Email
+            </Label>
 
             <div className="relative">
               <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -189,7 +200,9 @@ export function SignupForm() {
 
           {/* Password */}
           <div className="space-y-1.5">
-            <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Password</Label>
+            <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              Password
+            </Label>
 
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -240,22 +253,24 @@ export function SignupForm() {
         {/* Divider */}
         <div className="flex items-center gap-3 my-5">
           <Separator className="flex-1 bg-border/40" />
-          <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-widest">Or continue with</span>
+          <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-widest">
+            Or continue with
+          </span>
           <Separator className="flex-1 bg-border/40" />
         </div>
 
         {/* Social */}
         <div className="flex flex-col gap-2">
           <div className="relative">
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               className="w-full py-2 border-border/60 bg-background/40 hover:bg-background/70 transition-colors"
               onClick={() => handleOAuthSignIn("google")}
             >
               <Chrome className="w-4 h-4" />
               Continue with Google
             </Button>
-            {lastMethod === 'google' && (
+            {lastMethod === "google" && (
               <span className="absolute -top-2 -right-2 bg-black text-white text-[10px] px-2 py-0.5 rounded-full font-medium">
                 Last used
               </span>
@@ -263,15 +278,15 @@ export function SignupForm() {
           </div>
 
           <div className="relative">
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               className="w-full py-2 border-border/60 bg-background/40 hover:bg-background/70 transition-colors"
               onClick={() => handleOAuthSignIn("github")}
             >
               <Github className="w-4 h-4" />
               Continue with GitHub
             </Button>
-            {lastMethod === 'github' && (
+            {lastMethod === "github" && (
               <span className="absolute -top-2 -right-2 bg-black text-white text-[10px] px-2 py-0.5 rounded-full font-medium">
                 Last used
               </span>

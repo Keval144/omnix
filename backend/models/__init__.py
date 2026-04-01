@@ -1,8 +1,8 @@
-from models.auth import User
-from models.chat import ChatMessage, ChatSession
+from models.auth_tables import Account, AlembicVersion, JWKS, Session, Verification
+from models.chat import ChatMessage, ChatRole, ChatSession
 from models.dataset import Dataset
 from models.notebook import Notebook
-from models.project import Project
+from models.project import Project, User
 from models.token import TokenRequestType, TokenUsageLog, UserProjectToken
 
 __all__ = [
@@ -12,7 +12,13 @@ __all__ = [
     "Notebook",
     "ChatSession",
     "ChatMessage",
+    "ChatRole",
     "UserProjectToken",
     "TokenUsageLog",
     "TokenRequestType",
+    "Account",
+    "Session",
+    "Verification",
+    "JWKS",
+    "AlembicVersion",
 ]

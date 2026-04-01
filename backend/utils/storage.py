@@ -6,7 +6,7 @@ from uuid import uuid4
 from fastapi import UploadFile
 
 from config import get_settings
-from constants import DATASETS_DIRNAME, NOTEBOOKS_DIRNAME
+from constants import DATASETS_DIRNAME
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
@@ -20,8 +20,8 @@ def build_dataset_directory(user_id: str, project_slug: str) -> str:
     return os.path.join(str(settings.storage_root), DATASETS_DIRNAME, user_id, project_slug)
 
 
-def build_notebook_directory(user_id: str, project_slug: str) -> str:
-    return os.path.join(str(settings.storage_root), NOTEBOOKS_DIRNAME, user_id, project_slug)
+def build_notebook_path(user_id: str, project_slug: str, filename: str) -> str:
+    return os.path.join(build_dataset_directory(user_id, project_slug), filename)
 
 
 async def save_upload_file(upload_file: UploadFile, destination_dir: str) -> tuple[str, int]:
@@ -74,7 +74,7 @@ def resolve_storage_path(path: str) -> str:
         normalized = normalized[len(prefix):].lstrip("/")
     
     path_parts = Path(normalized).parts
-    if path_parts and path_parts[0] in (DATASETS_DIRNAME, NOTEBOOKS_DIRNAME):
+    if path_parts and path_parts[0] == DATASETS_DIRNAME:
         return str((settings.storage_root / normalized).resolve())
 
     return str(path_obj)

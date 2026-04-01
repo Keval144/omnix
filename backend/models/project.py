@@ -1,11 +1,29 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Index, String, Text, func
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from db.base import Base
+
+
+class User(Base):
+    __tablename__ = "user"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    email: Mapped[str] = mapped_column(String, nullable=False, unique=True)
+    email_verified: Mapped[bool] = mapped_column(default=False, nullable=False)
+    image: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+    role: Mapped[str | None] = mapped_column(String, nullable=True)
+    banned: Mapped[bool] = mapped_column(default=False, nullable=False)
+    ban_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ban_expires: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    projects: Mapped[list["Project"]] = relationship(back_populates="user", lazy="selectin")
 
 
 class Project(Base):
@@ -19,7 +37,6 @@ class Project(Base):
     user_id: Mapped[str] = mapped_column(String, ForeignKey("user.id", ondelete="CASCADE"), nullable=False)
     project_slug: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     dataset_path: Mapped[str | None] = mapped_column(Text, nullable=True)
-    dataset_file_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     notebook_path: Mapped[str | None] = mapped_column(Text, nullable=True)
     metadata_json: Mapped[dict | None] = mapped_column("metadata", JSONB, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)

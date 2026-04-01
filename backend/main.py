@@ -1,17 +1,17 @@
 import logging
+import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
-from dotenv import load_dotenv
-import os
 
 from config import get_settings
 from routers.chat_routes import router as chat_router
 from routers.dataset_routes import router as dataset_router
 from routers.notebook_routes import router as notebook_router
 from routers.project_routes import router as project_router
+from utils.session_cache import init_session_cache, shutdown_session_cache
 
 
 logging.basicConfig(
@@ -24,6 +24,8 @@ logging.basicConfig(
 async def lifespan(app: FastAPI):
     logger = logging.getLogger(__name__)
     logger.info("Starting up Omnix Backend...")
+    
+    await init_session_cache()
     
     try:
         from rag.vector_store import _get_collection
@@ -48,6 +50,7 @@ async def lifespan(app: FastAPI):
     
     yield
     
+    await shutdown_session_cache()
     logger.info("Shutting down Omnix Backend...")
 
 
@@ -56,11 +59,7 @@ app = FastAPI(title=settings.app_name, lifespan=lifespan)
 
 storage_path = settings.storage_root
 app.mount("/storage/datasets", StaticFiles(directory=str(storage_path / "datasets")), name="datasets")
-app.mount("/storage/notebooks", StaticFiles(directory=str(storage_path / "notebooks")), name="notebooks")
 
-
-BASE_DIR = Path(__file__).resolve().parent
-load_dotenv(BASE_DIR / ".env") 
 
 origin = os.getenv("CORS_ORIGIN")
 
@@ -79,6 +78,7 @@ app.include_router(project_router, prefix=settings.api_v1_prefix)
 app.include_router(dataset_router, prefix=settings.api_v1_prefix)
 app.include_router(notebook_router, prefix=settings.api_v1_prefix)
 app.include_router(chat_router, prefix=settings.api_v1_prefix)
+
 
 @app.head("/")
 async def root() -> dict[str, str]:
