@@ -2,6 +2,7 @@ from datetime import datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from constants import DEFAULT_CHAT_PAGE_SIZE
@@ -37,7 +38,8 @@ async def post_message(
     session: AsyncSession = Depends(get_db_session),
     current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> dict:
-    chat_session, user_message, assistant_message = await ChatService(session).create_message(
+    chat_service = ChatService(session)
+    chat_session, user_message, assistant_message = await chat_service.create_message(
         payload.project_id,
         current_user.user_id,
         payload.content,
@@ -50,6 +52,24 @@ async def post_message(
             ChatMessageResponse.model_validate(assistant_message),
         ],
     }
+
+
+@router.post("/message/stream")
+async def post_message_stream(
+    payload: ChatMessageCreate,
+    session: AsyncSession = Depends(get_db_session),
+    current_user: AuthenticatedUser = Depends(get_current_user),
+):
+    chat_service = ChatService(session)
+    return StreamingResponse(
+        chat_service.create_message_stream(
+            payload.project_id,
+            current_user.user_id,
+            payload.content,
+            payload.session_id,
+        ),
+        media_type="text/event-stream",
+    )
 
 
 @router.get("/messages", response_model=ChatMessagePage)

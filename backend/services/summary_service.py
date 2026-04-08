@@ -24,7 +24,7 @@ SUMMARY_USER_PROMPT = """Summarize this conversation in 2-3 sentences. Focus on:
 
 async def summarize_conversation(session_id: UUID, session: AsyncSession) -> str | None:
     try:
-        from llm.iflow_client import generate_async
+        from llm.iflow_client import IFlowClient
 
         stmt = (
             select(ChatMessage)
@@ -41,7 +41,7 @@ async def summarize_conversation(session_id: UUID, session: AsyncSession) -> str
         )
 
         prompt = SUMMARY_USER_PROMPT.format(conversation=conversation_text)
-        summary = await generate_async(prompt, SUMMARY_SYSTEM_PROMPT)
+        summary = await IFlowClient.generate_async(prompt, SUMMARY_SYSTEM_PROMPT)
 
         tokens_used = count_tokens(prompt) + count_tokens(summary)
         logger.info(f"Summary generated for session {session_id}: {tokens_used} tokens")

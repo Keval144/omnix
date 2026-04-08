@@ -15,10 +15,9 @@ def _build_async_database_url(database_url: str) -> str:
     parts = urlsplit(database_url)
     query = dict(parse_qsl(parts.query, keep_blank_values=True))
 
-    sslmode = query.pop("sslmode", None)
+    query.pop("sslmode", None)
+    query.pop("uselibpqcompat", None)
     query.pop("channel_binding", None)
-    if sslmode and "ssl" not in query:
-        query["ssl"] = sslmode
 
     return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
 
@@ -32,7 +31,10 @@ engine = create_async_engine(
     max_overflow=settings.db_max_overflow,
     pool_timeout=settings.db_pool_timeout,
     pool_recycle=settings.db_pool_recycle,
-    connect_args={"statement_cache_size": 0},
+    connect_args={
+        "statement_cache_size": 0,
+        "ssl": True,
+    },
 )
 SessionLocal = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 

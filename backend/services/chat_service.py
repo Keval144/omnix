@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from uuid import UUID
 
@@ -6,7 +7,7 @@ from sqlalchemy import Select, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from constants import MAX_CHAT_PAGE_SIZE, RECENT_MESSAGES_WINDOW, SUMMARY_THRESHOLD
-from llm.iflow_client import generate_async
+from llm.iflow_client import IFlowClient
 from models.chat import ChatMessage, ChatRole, ChatSession
 from models.dataset import Dataset
 from models.project import Project
@@ -64,6 +65,70 @@ class ChatService:
         chat_session.total_tokens_used += total_tokens
         await self.session.commit()
         return chat_session, user_message, assistant_message
+
+    async def create_message_stream(
+        self, project_id: UUID, user_id: str, content: str, session_id: UUID | None
+    ):
+        project = await self.project_service.get_project_for_user(project_id, user_id)
+        if not project:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+
+        chat_session = await self._get_or_create_session(project.project_id, session_id)
+
+        user_message = ChatMessage(session_id=chat_session.session_id, role=ChatRole.USER, content=content)
+        self.session.add(user_message)
+        await self.session.flush()
+
+        import json
+        yield f"data: {json.dumps({
+            'message_id': str(user_message.message_id),
+            'session_id': str(user_message.session_id),
+            'role': user_message.role.value,
+            'content': user_message.content,
+            'created_at': user_message.created_at.isoformat()
+        })}\n\n"
+
+        conversation_history, earlier_summary, summary_tokens = await self._get_conversation_context(
+            chat_session.session_id
+        )
+
+        dataset = await self._get_dataset_context(project.project_id)
+        context = None
+        if dataset and dataset.summary:
+            context = self._build_context_from_dataset(dataset)
+
+        full_prompt, system_prompt = build_chat_prompt(
+            content, context, conversation_history, earlier_summary
+        )
+
+        prompt_tokens = count_tokens(full_prompt) + count_tokens(system_prompt)
+
+        accumulated_content = ""
+        async for chunk in IFlowClient.generate_stream_async(full_prompt, system_prompt):
+            accumulated_content += chunk
+            yield f"data: {chunk}\n\n"
+
+        response_tokens = count_tokens(accumulated_content)
+        total_tokens = prompt_tokens + response_tokens
+        logger.info(f"LLM streaming request: {total_tokens} tokens (prompt: {prompt_tokens}, response: {response_tokens})")
+
+        await self.token_service.increment_tokens(
+            user_id=user_id,
+            project_id=project_id,
+            tokens_used=total_tokens,
+            request_type=TokenRequestType.CHAT,
+        )
+
+        assistant_message = ChatMessage(
+            session_id=chat_session.session_id,
+            role=ChatRole.ASSISTANT,
+            content=accumulated_content,
+        )
+        self.session.add(assistant_message)
+        chat_session.total_tokens_used += total_tokens
+        await self.session.commit()
+
+        yield "data: [DONE]\n\n"
 
     async def _get_conversation_context(
         self, session_id: UUID
@@ -123,7 +188,7 @@ class ChatService:
             )
 
             prompt_tokens = count_tokens(full_prompt) + count_tokens(system_prompt)
-            response = await generate_async(full_prompt, system_prompt)
+            response = await IFlowClient.generate_async(full_prompt, system_prompt)
             response_tokens = count_tokens(response)
 
             total_tokens = prompt_tokens + response_tokens
